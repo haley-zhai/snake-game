@@ -1,20 +1,12 @@
 // Netlify Function - 云端排行榜 API
 const { Redis } = require('@upstash/redis');
 
-let redis = null;
-
-function getRedis() {
-  if (!redis) {
-    redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    });
-  }
-  return redis;
-}
+const redis = new Redis({
+  url: 'https://brief-goblin-75250.upstash.io',
+  token: 'gQAAAAAAASXyAAIncDEzZGQ1MTUyNzA4NjM0YzlmOWUwMjdiMzA1YTgxZDFjN3AxNzUyNTA'
+});
 
 exports.handler = async (event, context) => {
-  // CORS 头
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -22,7 +14,6 @@ exports.handler = async (event, context) => {
     'Content-Type': 'application/json'
   };
 
-  // 处理预检请求
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '{}' };
   }
@@ -30,14 +21,12 @@ exports.handler = async (event, context) => {
   const path = event.path.replace('/.netlify/functions/api', '').replace('/api', '');
 
   try {
-    // 获取排行榜
     if (event.httpMethod === 'GET' && path === '/leaderboard') {
-      const scores = await getRedis().zrange('snake_leaderboard', 0, 49, { 
+      const scores = await redis.zrange('snake_leaderboard', 0, 49, { 
         withScores: true,
         rev: true 
       });
       
-      // 转换为对象数组
       const formatted = [];
       for (let i = 0; i < scores.length; i += 2) {
         const data = JSON.parse(scores[i]);
@@ -56,7 +45,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 提交分数
     if (event.httpMethod === 'POST' && path === '/submit') {
       const { name, score } = JSON.parse(event.body);
       
@@ -74,17 +62,14 @@ exports.handler = async (event, context) => {
         date: new Date().toLocaleString('zh-CN')
       };
 
-      // 使用 Redis Sorted Set，按分数排序
-      await getRedis().zadd('snake_leaderboard', { 
+      await redis.zadd('snake_leaderboard', { 
         score: score, 
         member: JSON.stringify(data) 
       });
 
-      // 只保留前100名
-      await getRedis().zremrangebyrank('snake_leaderboard', 0, -101);
+      await redis.zremrangebyrank('snake_leaderboard', 0, -101);
 
-      // 获取排名
-      const rank = await getRedis().zrevrank('snake_leaderboard', JSON.stringify(data));
+      const rank = await redis.zrevrank('snake_leaderboard', JSON.stringify(data));
 
       return {
         statusCode: 200,
