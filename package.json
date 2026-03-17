@@ -1,0 +1,7 @@
+{
+  "name": "snake-game",
+  "version": "4.0.0",
+  "dependencies": {
+    "@upstash/redis": "^1.28.0"
+  }
+}
