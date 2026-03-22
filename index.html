@@ -986,7 +986,16 @@
             document.getElementById('soundBtn').textContent = soundEnabled ? '🔊' : '🔇';
         }
 
-    <script src="config.js"></script>
+    <script>
+        // GitHub Issues 排行榜配置
+        // 请替换下面的值为你的真实 Token，或创建 config.js 文件
+        const GITHUB_CONFIG_LOCAL = {
+            OWNER: 'haley-zhai',
+            REPO: 'snake-game',
+            TOKEN: 'ghp_YOUR_TOKEN_HERE',  // ← 替换为你的 Token
+            LABEL: 'leaderboard'
+        };
+    </script>
     <script src="game.js"></script>
 </body>
 </html>
