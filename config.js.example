@@ -1,0 +1,9 @@
+// GitHub Issues 排行榜配置
+// 此文件包含敏感信息，不会被提交到仓库
+
+const GITHUB_CONFIG_LOCAL = {
+    OWNER: 'haley-zhai',
+    REPO: 'snake-game',
+    TOKEN: 'ghp_YOUR_TOKEN_HERE',  // ← 改成你的真实 Token
+    LABEL: 'leaderboard'
+};
