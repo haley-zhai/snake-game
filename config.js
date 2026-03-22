@@ -1,6 +1,6 @@
 const GITHUB_CONFIG_LOCAL = {
     OWNER: 'haley-zhai',
     REPO: 'snake-game',
-    TOKEN: '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',
+    TOKEN: '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',
     LABEL: 'leaderboard'
 };
