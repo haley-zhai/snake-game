@@ -1,34 +1,45 @@
-// ==================== GitHub Issues 排行榜 API ====================
+// ==================== 腾讯云开发排行榜 API ====================
 
-const API_BASE = 'https://api.github.com';
-
-// 配置 - 从外部 config.js 加载，如果不存在则使用本地模式
-let GITHUB_CONFIG = null;
-
-// 尝试加载配置
-try {
-    if (typeof GITHUB_CONFIG_LOCAL !== 'undefined') {
-        GITHUB_CONFIG = GITHUB_CONFIG_LOCAL;
-    }
-} catch (e) {
-    console.log('未找到 GitHub 配置，使用本地存储模式');
-}
-
-// 验证配置
-function checkConfig() {
-    if (!GITHUB_CONFIG) return false;
-    if (!GITHUB_CONFIG.TOKEN || GITHUB_CONFIG.TOKEN === 'ghp_YOUR_TOKEN_HERE') {
-        return false;
-    }
-    if (!GITHUB_CONFIG.OWNER || !GITHUB_CONFIG.REPO) {
-        return false;
-    }
-    return true;
-}
+// 腾讯云环境配置
+const CLOUDBASE_ENV = 'snake-game-5gvtkwf262c3ddc4';
+let app = null;
+let db = null;
+let isCloudReady = false;
 
 // 显示状态消息
 function showStatus(message, type = 'info') {
     console.log(`[${type}] ${message}`);
+}
+
+// 初始化腾讯云开发
+async function initCloudBase() {
+    if (isCloudReady) return true;
+    
+    try {
+        // 检查 cloudbase 是否已加载
+        if (typeof cloudbase === 'undefined') {
+            showStatus('腾讯云 SDK 未加载', 'warn');
+            return false;
+        }
+        
+        // 初始化
+        app = cloudbase.init({
+            env: CLOUDBASE_ENV
+        });
+        
+        // 匿名登录
+        await app.auth().anonymousAuthProvider().signIn();
+        showStatus('腾讯云匿名登录成功', 'success');
+        
+        // 获取数据库实例
+        db = app.database();
+        isCloudReady = true;
+        return true;
+        
+    } catch (e) {
+        showStatus(`腾讯云初始化失败: ${e.message}`, 'error');
+        return false;
+    }
 }
 
 // 获取排行榜数据
@@ -36,69 +47,37 @@ async function fetchLeaderboard() {
     // 先尝试从本地加载缓存
     const cached = loadCachedLeaderboard();
     
-    if (!checkConfig()) {
-        showStatus('未配置 GitHub Token，使用本地排行榜', 'warn');
+    // 初始化云开发
+    const cloudReady = await initCloudBase();
+    
+    if (!cloudReady || !db) {
+        showStatus('使用本地排行榜', 'warn');
         return fetchLocalLeaderboard();
     }
     
     try {
-        showStatus('正在加载排行榜...', 'info');
-        const url = `${API_BASE}/repos/${GITHUB_CONFIG.OWNER}/${GITHUB_CONFIG.REPO}/issues?labels=${GITHUB_CONFIG.LABEL}&state=all&per_page=100&sort=created&direction=desc`;
+        showStatus('正在加载云端排行榜...', 'info');
         
-        const response = await fetch(url);
+        // 从数据库查询，按分数降序，最多50条
+        const { data } = await db.collection('leaderboard')
+            .orderBy('score', 'desc')
+            .limit(50)
+            .get();
         
-        if (!response.ok) {
-            const errorText = await response.text();
-            showStatus(`GitHub API 错误: ${response.status} - ${errorText}`, 'error');
-            // 如果有缓存，返回缓存数据
-            if (cached.length > 0) {
-                showStatus('使用缓存数据', 'info');
-                return cached;
-            }
-            return fetchLocalLeaderboard();
-        }
+        showStatus(`获取到 ${data.length} 条记录`, 'info');
         
-        const issues = await response.json();
-        showStatus(`获取到 ${issues.length} 条记录`, 'info');
-        
-        // 解析 Issue 数据
-        const scores = issues.map(issue => {
-            try {
-                let data;
-                if (issue.body && issue.body.startsWith('{')) {
-                    data = JSON.parse(issue.body);
-                } else {
-                    // 兼容旧格式：从标题解析
-                    const match = issue.title.match(/🏆\s*(.+):\s*(\d+)分/);
-                    if (match) {
-                        data = {
-                            name: match[1],
-                            score: parseInt(match[2])
-                        };
-                    } else {
-                        return null;
-                    }
-                }
-                
-                return {
-                    name: data.name || '匿名',
-                    score: parseInt(data.score) || 0,
-                    date: data.date || new Date(issue.created_at).toLocaleString('zh-CN'),
-                    timestamp: new Date(issue.created_at).getTime(),
-                    issueNumber: issue.number
-                };
-            } catch (e) {
-                return null;
-            }
-        }).filter(item => item !== null);
-        
-        // 按分数排序
-        scores.sort((a, b) => b.score - a.score);
+        // 格式化数据
+        const scores = data.map(item => ({
+            name: item.name || '匿名',
+            score: parseInt(item.score) || 0,
+            date: item.date || new Date(item.timestamp).toLocaleString('zh-CN'),
+            timestamp: item.timestamp || Date.now()
+        }));
         
         // 缓存到本地
         cacheLeaderboard(scores);
         
-        return scores.slice(0, 50);
+        return scores;
         
     } catch (e) {
         showStatus(`获取排行榜失败: ${e.message}`, 'error');
@@ -110,59 +89,30 @@ async function fetchLeaderboard() {
     }
 }
 
-// 提交分数到 GitHub Issues
+// 提交分数到云端
 async function submitScoreToCloud(name, score) {
-    if (!checkConfig()) {
-        showStatus('未配置 GitHub，保存到本地', 'info');
+    // 初始化云开发
+    const cloudReady = await initCloudBase();
+    
+    if (!cloudReady || !db) {
+        showStatus('云端不可用，保存到本地', 'info');
         return submitScoreLocal(name, score);
     }
     
     try {
         const date = new Date().toLocaleString('zh-CN');
-        const body = JSON.stringify({
-            name: name,
-            score: score,
-            date: date
-        });
         
         showStatus('正在提交分数...', 'info');
         
-        const response = await fetch(`${API_BASE}/repos/${GITHUB_CONFIG.OWNER}/${GITHUB_CONFIG.REPO}/issues`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                title: `🏆 ${name}: ${score}分`,
-                body: body,
-                labels: [GITHUB_CONFIG.LABEL]
-            })
+        // 添加到数据库
+        await db.collection('leaderboard').add({
+            name: name,
+            score: score,
+            date: date,
+            timestamp: Date.now()
         });
         
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            const errorMsg = errorData.message || `HTTP ${response.status}`;
-            showStatus(`提交失败: ${errorMsg}`, 'error');
-            
-            // 保存到本地作为备份
-            const localRank = submitScoreLocal(name, score);
-            
-            // 特殊错误处理
-            if (response.status === 401) {
-                alert('GitHub Token 无效，请检查配置');
-            } else if (response.status === 403) {
-                alert('API 速率限制或权限不足，已保存到本地');
-            } else if (response.status === 404) {
-                alert('仓库不存在或无法访问，已保存到本地');
-            }
-            
-            return localRank;
-        }
-        
-        const issue = await response.json();
-        showStatus(`✅ 分数已提交: ${issue.html_url}`, 'success');
+        showStatus('✅ 分数已提交到云端', 'success');
         
         // 重新获取排行榜以计算排名
         const leaderboard = await fetchLeaderboard();
@@ -186,13 +136,13 @@ async function submitScoreToCloud(name, score) {
         return rank > 0 ? rank : null;
         
     } catch (e) {
-        showStatus(`提交异常: ${e.message}`, 'error');
-        // 异常时保存到本地
+        showStatus(`提交失败: ${e.message}`, 'error');
+        // 失败时保存到本地
         return submitScoreLocal(name, score);
     }
 }
 
-// ==================== 本地存储 ====================
+// ==================== 本地存储（备份）====================
 
 const STORAGE_KEY = 'snakeGame_local_v2';
 const CACHE_KEY = 'snakeGame_cache_v2';
@@ -343,7 +293,7 @@ function vibrate(ms = 30) {
     if (navigator.vibrate) navigator.vibrate(ms);
 }
 
-// ==================== 本地存储（个人记录） ====================
+// ==================== 本地存储（个人记录）====================
 const PERSONAL_KEY = 'snakeGame_personal_v2';
 
 function getGameData() {

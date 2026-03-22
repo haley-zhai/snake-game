@@ -987,19 +987,8 @@
         }
     </script>
     
-    <script src="config.js"></script>
-    <script>
-        // 如果外部 config.js 没有加载，使用默认配置
-        if (typeof GITHUB_CONFIG_LOCAL === 'undefined') {
-            console.log('未找到 config.js，使用默认配置（本地模式）');
-            var GITHUB_CONFIG_LOCAL = {
-                OWNER: 'haley-zhai',
-                REPO: 'snake-game',
-                TOKEN: '',  // 空表示使用本地模式
-                LABEL: 'leaderboard'
-            };
-        }
-    </script>
+    <!-- 腾讯云开发 SDK -->
+    <script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/1.1.1/cloudbase.full.js"></script>
     <script src="game.js"></script>
 </body>
 </html>
