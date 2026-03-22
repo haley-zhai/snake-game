@@ -1,28 +1,149 @@
-// ==================== 云端 API ====================
-const API_BASE = '/.netlify/functions/api';
+// ==================== GitHub Issues 排行榜 API ====================
 
+const API_BASE = 'https://api.github.com';
+
+// 获取排行榜数据
 async function fetchLeaderboard() {
+    if (!checkConfig()) {
+        console.log('使用本地存储模式');
+        return fetchLocalLeaderboard();
+    }
+    
     try {
-        const response = await fetch(`${API_BASE}/leaderboard`);
-        const result = await response.json();
-        return result.success ? result.data : [];
+        const url = `${API_BASE}/repos/${GITHUB_CONFIG.OWNER}/${GITHUB_CONFIG.REPO}/issues?labels=${GITHUB_CONFIG.LABEL}&state=all&per_page=100&sort=created&direction=desc`;
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            console.warn('GitHub API 错误:', response.status);
+            return fetchLocalLeaderboard();
+        }
+        
+        const issues = await response.json();
+        
+        // 解析 Issue 数据
+        const scores = issues.map(issue => {
+            try {
+                const data = JSON.parse(issue.body);
+                return {
+                    name: data.name || '匿名',
+                    score: parseInt(data.score) || 0,
+                    date: data.date || new Date(issue.created_at).toLocaleString('zh-CN'),
+                    timestamp: new Date(issue.created_at).getTime(),
+                    issueNumber: issue.number
+                };
+            } catch (e) {
+                return null;
+            }
+        }).filter(item => item !== null);
+        
+        // 按分数排序
+        scores.sort((a, b) => b.score - a.score);
+        
+        // 只保留前50名（GitHub API 限制，也可以本地再过滤）
+        return scores.slice(0, 50);
+        
     } catch (e) {
-        console.error('Failed to fetch leaderboard:', e);
+        console.error('获取排行榜失败:', e);
+        return fetchLocalLeaderboard();
+    }
+}
+
+// 提交分数到 GitHub Issues
+async function submitScoreToCloud(name, score) {
+    if (!checkConfig()) {
+        console.log('使用本地存储提交');
+        return submitScoreLocal(name, score);
+    }
+    
+    try {
+        const date = new Date().toLocaleString('zh-CN');
+        const body = JSON.stringify({
+            name: name,
+            score: score,
+            date: date
+        });
+        
+        const response = await fetch(`${API_BASE}/repos/${GITHUB_CONFIG.OWNER}/${GITHUB_CONFIG.REPO}/issues`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                title: `🏆 ${name}: ${score}分`,
+                body: body,
+                labels: [GITHUB_CONFIG.LABEL]
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            console.error('提交失败:', error);
+            
+            // Token 错误或权限不足，回退到本地
+            if (response.status === 401 || response.status === 403) {
+                console.warn('GitHub Token 无效，切换到本地模式');
+                return submitScoreLocal(name, score);
+            }
+            
+            return null;
+        }
+        
+        const issue = await response.json();
+        console.log('✅ 分数已提交:', issue.html_url);
+        
+        // 返回排名（需要重新获取排行榜计算）
+        const leaderboard = await fetchLeaderboard();
+        const rank = leaderboard.findIndex(item => item.name === name && item.score === score) + 1;
+        return rank > 0 ? rank : null;
+        
+    } catch (e) {
+        console.error('提交分数失败:', e);
+        return submitScoreLocal(name, score);
+    }
+}
+
+// ==================== 本地存储备用方案 ====================
+
+const STORAGE_KEY = 'snakeGame_github_v1';
+
+function fetchLocalLeaderboard() {
+    try {
+        const data = localStorage.getItem(STORAGE_KEY);
+        const scores = data ? JSON.parse(data) : [];
+        scores.sort((a, b) => b.score - a.score);
+        return scores.slice(0, 50);
+    } catch (e) {
         return [];
     }
 }
 
-async function submitScoreToCloud(name, score) {
+function submitScoreLocal(name, score) {
     try {
-        const response = await fetch(`${API_BASE}/submit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, score })
+        const scores = fetchLocalLeaderboard();
+        const date = new Date().toLocaleString('zh-CN');
+        
+        scores.push({
+            name: name,
+            score: score,
+            date: date,
+            timestamp: Date.now()
         });
-        const result = await response.json();
-        return result.success ? result.rank : null;
+        
+        scores.sort((a, b) => b.score - a.score);
+        
+        // 只保留50条
+        const top50 = scores.slice(0, 50);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(top50));
+        
+        // 返回排名
+        const rank = top50.findIndex(item => item.name === name && item.score === score) + 1;
+        return rank > 0 ? rank : null;
+        
     } catch (e) {
-        console.error('Failed to submit score:', e);
+        console.error('本地存储失败:', e);
         return null;
     }
 }
@@ -103,12 +224,12 @@ function vibrate(ms = 30) {
     if (navigator.vibrate) navigator.vibrate(ms);
 }
 
-// ==================== 本地存储（备用） ====================
-const STORAGE_KEY = 'snakeGame_v5';
+// ==================== 本地存储（个人记录） ====================
+const PERSONAL_KEY = 'snakeGame_personal_v1';
 
 function getGameData() {
     try {
-        const data = localStorage.getItem(STORAGE_KEY);
+        const data = localStorage.getItem(PERSONAL_KEY);
         return data ? JSON.parse(data) : { highScore: 0, playerName: '' };
     } catch (e) {
         return { highScore: 0, playerName: '' };
@@ -116,7 +237,7 @@ function getGameData() {
 }
 
 function saveGameData(data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(PERSONAL_KEY, JSON.stringify(data));
 }
 
 function getHighScore() {
@@ -406,7 +527,7 @@ function setDifficulty(d) {
     }
 }
 
-// ==================== 云端排行榜 ====================
+// ==================== 排行榜展示 ====================
 async function loadLeaderboard() {
     leaderboardData = await fetchLeaderboard();
     renderLeaderboard();
@@ -432,7 +553,18 @@ function renderLeaderboard() {
     let html = '';
     const myName = currentPlayerName || getPlayerName();
     
-    leaderboardData.slice(0, 10).forEach((item, i) => {
+    // 去重：同一玩家只显示最高分
+    const uniquePlayers = [];
+    const seen = new Set();
+    
+    for (const item of leaderboardData) {
+        if (!seen.has(item.name)) {
+            seen.add(item.name);
+            uniquePlayers.push(item);
+        }
+    }
+    
+    uniquePlayers.slice(0, 10).forEach((item, i) => {
         const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal';
         const isMe = item.name === myName;
         
@@ -459,7 +591,18 @@ function updateMyRank() {
         return;
     }
     
-    const rank = leaderboardData.findIndex(item => item.name === myName);
+    // 去重后找排名
+    const uniquePlayers = [];
+    const seen = new Set();
+    
+    for (const item of leaderboardData) {
+        if (!seen.has(item.name)) {
+            seen.add(item.name);
+            uniquePlayers.push(item);
+        }
+    }
+    
+    const rank = uniquePlayers.findIndex(item => item.name === myName);
     document.getElementById('myRank').textContent = rank >= 0 ? '#' + (rank + 1) : '-';
 }
 
@@ -473,14 +616,25 @@ async function submitScore() {
     currentPlayerName = name;
     savePlayerName(name);
     
-    // 提交到云端
-    const rank = await submitScoreToCloud(name, score);
+    // 显示加载状态
+    const submitBtn = document.querySelector('#gameOverModal .btn-full');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = '提交中...';
+    submitBtn.disabled = true;
     
-    // 刷新排行榜
-    await loadLeaderboard();
-    
-    if (rank) {
-        document.getElementById('myRank').textContent = '#' + rank;
+    try {
+        // 提交到云端
+        const rank = await submitScoreToCloud(name, score);
+        
+        // 刷新排行榜
+        await loadLeaderboard();
+        
+        if (rank) {
+            document.getElementById('myRank').textContent = '#' + rank;
+        }
+    } finally {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
     }
     
     closeModal();
