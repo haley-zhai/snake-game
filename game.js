@@ -1,240 +1,17 @@
-// ==================== 腾讯云开发排行榜 API ====================
-
-// 腾讯云环境配置
+// ==================== 配置 ====================
 const CLOUDBASE_ENV = 'snake-game-5gvtkwf262c3ddc4';
+
+// ==================== 状态管理 ====================
 let app = null;
 let db = null;
 let isCloudReady = false;
+let useCloud = false;  // 默认不开启云端
 
-// 显示状态消息
-function showStatus(message, type = 'info') {
-    console.log(`[${type}] ${message}`);
-}
-
-// 初始化腾讯云开发
-async function initCloudBase() {
-    if (isCloudReady) return true;
-    
-    try {
-        // 检查 cloudbase 是否已加载
-        if (typeof cloudbase === 'undefined') {
-            showStatus('腾讯云 SDK 未加载', 'warn');
-            return false;
-        }
-        
-        // 初始化
-        app = cloudbase.init({
-            env: CLOUDBASE_ENV
-        });
-        
-        // 匿名登录
-        await app.auth().anonymousAuthProvider().signIn();
-        showStatus('腾讯云匿名登录成功', 'success');
-        
-        // 获取数据库实例
-        db = app.database();
-        isCloudReady = true;
-        return true;
-        
-    } catch (e) {
-        showStatus(`腾讯云初始化失败: ${e.message}`, 'error');
-        return false;
-    }
-}
-
-// 获取排行榜数据
-async function fetchLeaderboard() {
-    // 先尝试从本地加载缓存
-    const cached = loadCachedLeaderboard();
-    
-    // 初始化云开发
-    const cloudReady = await initCloudBase();
-    
-    if (!cloudReady || !db) {
-        showStatus('使用本地排行榜', 'warn');
-        return fetchLocalLeaderboard();
-    }
-    
-    try {
-        showStatus('正在加载云端排行榜...', 'info');
-        
-        // 从数据库查询，按分数降序，最多50条
-        const { data } = await db.collection('leaderboard')
-            .orderBy('score', 'desc')
-            .limit(50)
-            .get();
-        
-        showStatus(`获取到 ${data.length} 条记录`, 'info');
-        
-        // 格式化数据
-        const scores = data.map(item => ({
-            name: item.name || '匿名',
-            score: parseInt(item.score) || 0,
-            date: item.date || new Date(item.timestamp).toLocaleString('zh-CN'),
-            timestamp: item.timestamp || Date.now()
-        }));
-        
-        // 缓存到本地
-        cacheLeaderboard(scores);
-        
-        return scores;
-        
-    } catch (e) {
-        showStatus(`获取排行榜失败: ${e.message}`, 'error');
-        // 如果有缓存，返回缓存
-        if (cached.length > 0) {
-            return cached;
-        }
-        return fetchLocalLeaderboard();
-    }
-}
-
-// 提交分数到云端
-async function submitScoreToCloud(name, score) {
-    // 初始化云开发
-    const cloudReady = await initCloudBase();
-    
-    if (!cloudReady || !db) {
-        showStatus('云端不可用，保存到本地', 'info');
-        return submitScoreLocal(name, score);
-    }
-    
-    try {
-        const date = new Date().toLocaleString('zh-CN');
-        
-        showStatus('正在提交分数...', 'info');
-        
-        // 添加到数据库
-        await db.collection('leaderboard').add({
-            name: name,
-            score: score,
-            date: date,
-            timestamp: Date.now()
-        });
-        
-        showStatus('✅ 分数已提交到云端', 'success');
-        
-        // 重新获取排行榜以计算排名
-        const leaderboard = await fetchLeaderboard();
-        
-        // 去重后找排名
-        const uniquePlayers = [];
-        const seen = new Set();
-        for (const item of leaderboard) {
-            if (!seen.has(item.name)) {
-                seen.add(item.name);
-                uniquePlayers.push(item);
-            }
-        }
-        
-        const rank = uniquePlayers.findIndex(item => item.name === name && item.score === score) + 1;
-        
-        if (rank > 0) {
-            showStatus(`你的排名: #${rank}`, 'success');
-        }
-        
-        return rank > 0 ? rank : null;
-        
-    } catch (e) {
-        showStatus(`提交失败: ${e.message}`, 'error');
-        // 失败时保存到本地
-        return submitScoreLocal(name, score);
-    }
-}
-
-// ==================== 本地存储（备份）====================
-
+// ==================== 本地存储键名 ====================
 const STORAGE_KEY = 'snakeGame_local_v2';
 const CACHE_KEY = 'snakeGame_cache_v2';
-
-// 缓存排行榜（用于离线时显示）
-function cacheLeaderboard(scores) {
-    try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-            data: scores,
-            timestamp: Date.now()
-        }));
-    } catch (e) {
-        console.error('缓存失败:', e);
-    }
-}
-
-// 加载缓存的排行榜
-function loadCachedLeaderboard() {
-    try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-            const { data } = JSON.parse(cached);
-            return data || [];
-        }
-    } catch (e) {
-        console.error('读取缓存失败:', e);
-    }
-    return [];
-}
-
-// 本地排行榜
-function fetchLocalLeaderboard() {
-    try {
-        const data = localStorage.getItem(STORAGE_KEY);
-        const scores = data ? JSON.parse(data) : [];
-        scores.sort((a, b) => b.score - a.score);
-        return scores.slice(0, 50);
-    } catch (e) {
-        console.error('读取本地排行榜失败:', e);
-        return [];
-    }
-}
-
-// 本地提交分数
-function submitScoreLocal(name, score) {
-    try {
-        const scores = fetchLocalLeaderboard();
-        const date = new Date().toLocaleString('zh-CN');
-        
-        scores.push({
-            name: name,
-            score: score,
-            date: date,
-            timestamp: Date.now()
-        });
-        
-        scores.sort((a, b) => b.score - a.score);
-        
-        // 只保留50条
-        const top50 = scores.slice(0, 50);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(top50));
-        
-        showStatus('已保存到本地', 'success');
-        
-        // 返回排名
-        const rank = top50.findIndex(item => item.name === name && item.score === score) + 1;
-        return rank > 0 ? rank : null;
-        
-    } catch (e) {
-        console.error('本地保存失败:', e);
-        return null;
-    }
-}
-
-// ==================== 游戏配置 ====================
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-
-const dpr = window.devicePixelRatio || 1;
-canvas.width = 350 * dpr;
-canvas.height = 350 * dpr;
-ctx.scale(dpr, dpr);
-canvas.style.width = '100%';
-
-const gridSize = 20;
-const tileCount = 350 / gridSize;
-
-const difficulties = {
-    easy: { speed: 150, label: '简单' },
-    normal: { speed: 100, label: '普通' },
-    hard: { speed: 60, label: '困难' }
-};
+const PERSONAL_KEY = 'snakeGame_personal_v2';
+const CLOUD_SETTING_KEY = 'snakeGame_useCloud';
 
 // ==================== 游戏状态 ====================
 let snake = [];
@@ -247,55 +24,265 @@ let isGameOver = false;
 let isGameStarted = false;
 let difficulty = 'easy';
 let soundEnabled = true;
-let currentSpeed = difficulties.easy.speed;
+let currentSpeed = 150;
 let directionQueue = [];
 let currentPlayerName = '';
 let leaderboardData = [];
 
+const difficulties = {
+    easy: { speed: 150, label: '简单' },
+    normal: { speed: 100, label: '普通' },
+    hard: { speed: 60, label: '困难' }
+};
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+const gridSize = 20;
+const tileCount = 350 / gridSize;
+
 // ==================== 音频系统 ====================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-function playSound(type) {
-    if (!soundEnabled) return;
+// ==================== 初始化画布 ====================
+canvas.width = 350 * dpr;
+canvas.height = 350 * dpr;
+ctx.scale(dpr, dpr);
+canvas.style.width = '100%';
+
+// ==================== 云端设置管理 ====================
+function loadCloudSetting() {
     try {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        
-        if (type === 'eat') {
-            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-            osc.start(audioCtx.currentTime);
-            osc.stop(audioCtx.currentTime + 0.15);
-        } else if (type === 'die') {
-            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.4);
-            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
-            osc.start(audioCtx.currentTime);
-            osc.stop(audioCtx.currentTime + 0.4);
-        } else if (type === 'start') {
-            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-            osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-            osc.start(audioCtx.currentTime);
-            osc.stop(audioCtx.currentTime + 0.2);
+        const saved = localStorage.getItem(CLOUD_SETTING_KEY);
+        if (saved !== null) {
+            useCloud = saved === 'true';
         }
+    } catch (e) {}
+    updateCloudToggleUI();
+}
+
+function saveCloudSetting() {
+    try {
+        localStorage.setItem(CLOUD_SETTING_KEY, useCloud.toString());
     } catch (e) {}
 }
 
-function vibrate(ms = 30) {
-    if (navigator.vibrate) navigator.vibrate(ms);
+function toggleCloud() {
+    useCloud = !useCloud;
+    saveCloudSetting();
+    updateCloudToggleUI();
+    
+    // 刷新排行榜
+    loadLeaderboard();
+    
+    // 显示提示
+    const msg = useCloud ? '已开启云端同步' : '已切换到本地模式';
+    showToast(msg);
 }
 
-// ==================== 本地存储（个人记录）====================
-const PERSONAL_KEY = 'snakeGame_personal_v2';
+function updateCloudToggleUI() {
+    const btn = document.getElementById('cloudToggleBtn');
+    if (btn) {
+        btn.textContent = useCloud ? '☁️ 云端' : '📱 本地';
+        btn.classList.toggle('active', useCloud);
+    }
+}
 
+function showToast(message) {
+    // 简单的提示
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0,0,0,0.8);
+        color: #fff;
+        padding: 16px 24px;
+        border-radius: 12px;
+        font-size: 14px;
+        z-index: 9999;
+        animation: fadeIn 0.3s;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s';
+        setTimeout(() => toast.remove(), 300);
+    }, 1500);
+}
+
+// ==================== 腾讯云开发 ====================
+async function initCloudBase() {
+    if (!useCloud) return false;  // 未开启云端，直接返回
+    if (isCloudReady) return true;
+    
+    try {
+        if (typeof cloudbase === 'undefined') {
+            console.log('[Cloud] SDK 未加载');
+            return false;
+        }
+        
+        app = cloudbase.init({ env: CLOUDBASE_ENV });
+        await app.auth().anonymousAuthProvider().signIn();
+        db = app.database();
+        isCloudReady = true;
+        console.log('[Cloud] 连接成功');
+        return true;
+        
+    } catch (e) {
+        console.log('[Cloud] 连接失败:', e.message);
+        return false;
+    }
+}
+
+// ==================== 排行榜 - 根据模式自动切换 ====================
+async function fetchLeaderboard() {
+    if (useCloud) {
+        return await fetchCloudLeaderboard();
+    } else {
+        return fetchLocalLeaderboard();
+    }
+}
+
+async function fetchCloudLeaderboard() {
+    const cached = loadCachedLeaderboard();
+    const cloudReady = await initCloudBase();
+    
+    if (!cloudReady || !db) {
+        console.log('[Cloud] 使用缓存数据');
+        return cached.length > 0 ? cached : [];
+    }
+    
+    try {
+        const { data } = await db.collection('leaderboard')
+            .orderBy('score', 'desc')
+            .limit(50)
+            .get();
+        
+        const scores = data.map(item => ({
+            name: item.name || '匿名',
+            score: parseInt(item.score) || 0,
+            date: item.date || new Date(item.timestamp).toLocaleString('zh-CN'),
+            timestamp: item.timestamp || Date.now()
+        }));
+        
+        // 缓存到本地
+        cacheLeaderboard(scores);
+        return scores;
+        
+    } catch (e) {
+        console.log('[Cloud] 获取失败:', e.message);
+        return cached.length > 0 ? cached : [];
+    }
+}
+
+function fetchLocalLeaderboard() {
+    try {
+        const data = localStorage.getItem(STORAGE_KEY);
+        const scores = data ? JSON.parse(data) : [];
+        scores.sort((a, b) => b.score - a.score);
+        return scores.slice(0, 50);
+    } catch (e) {
+        return [];
+    }
+}
+
+// ==================== 提交分数 - 根据模式自动切换 ====================
+async function submitScoreToStorage(name, scoreValue) {
+    if (useCloud) {
+        return await submitScoreToCloud(name, scoreValue);
+    } else {
+        return submitScoreLocal(name, scoreValue);
+    }
+}
+
+async function submitScoreToCloud(name, scoreValue) {
+    const cloudReady = await initCloudBase();
+    
+    if (!cloudReady || !db) {
+        console.log('[Cloud] 提交失败，云端不可用');
+        return null;
+    }
+    
+    try {
+        const date = new Date().toLocaleString('zh-CN');
+        await db.collection('leaderboard').add({
+            name: name,
+            score: scoreValue,
+            date: date,
+            timestamp: Date.now()
+        });
+        
+        console.log('[Cloud] 提交成功');
+        
+        // 获取最新排名
+        const leaderboard = await fetchCloudLeaderboard();
+        const uniquePlayers = [];
+        const seen = new Set();
+        for (const item of leaderboard) {
+            if (!seen.has(item.name)) {
+                seen.add(item.name);
+                uniquePlayers.push(item);
+            }
+        }
+        
+        const rank = uniquePlayers.findIndex(item => item.name === name && item.score === scoreValue) + 1;
+        return rank > 0 ? rank : null;
+        
+    } catch (e) {
+        console.log('[Cloud] 提交失败:', e.message);
+        return null;
+    }
+}
+
+function submitScoreLocal(name, scoreValue) {
+    try {
+        const scores = fetchLocalLeaderboard();
+        const date = new Date().toLocaleString('zh-CN');
+        
+        scores.push({
+            name: name,
+            score: scoreValue,
+            date: date,
+            timestamp: Date.now()
+        });
+        
+        scores.sort((a, b) => b.score - a.score);
+        const top50 = scores.slice(0, 50);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(top50));
+        
+        const rank = top50.findIndex(item => item.name === name && item.score === scoreValue) + 1;
+        return rank > 0 ? rank : null;
+        
+    } catch (e) {
+        console.error('本地保存失败:', e);
+        return null;
+    }
+}
+
+// ==================== 缓存管理 ====================
+function cacheLeaderboard(scores) {
+    try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+            data: scores,
+            timestamp: Date.now()
+        }));
+    } catch (e) {}
+}
+
+function loadCachedLeaderboard() {
+    try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+            const { data } = JSON.parse(cached);
+            return data || [];
+        }
+    } catch (e) {}
+    return [];
+}
+
+// ==================== 个人记录管理 ====================
 function getGameData() {
     try {
         const data = localStorage.getItem(PERSONAL_KEY);
@@ -334,6 +321,44 @@ function savePlayerName(name) {
 }
 
 // ==================== 游戏核心 ====================
+function playSound(type) {
+    if (!soundEnabled) return;
+    try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        if (type === 'eat') {
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.15);
+        } else if (type === 'die') {
+            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.4);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.4);
+        } else if (type === 'start') {
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.2);
+        }
+    } catch (e) {}
+}
+
+function vibrate(ms = 30) {
+    if (navigator.vibrate) navigator.vibrate(ms);
+}
+
 function drawGame() {
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, 350, 350);
@@ -496,7 +521,6 @@ function pauseGame() {
     isPaused = !isPaused;
 }
 
-// ==================== 输入处理 ====================
 function handleDirection(dir) {
     vibrate(15);
     
@@ -523,6 +547,7 @@ function handleDirection(dir) {
     }
 }
 
+// ==================== 输入事件 ====================
 document.addEventListener('keydown', (e) => {
     const keyMap = {
         'ArrowUp': 'up', 'ArrowDown': 'down', 'ArrowLeft': 'left', 'ArrowRight': 'right',
@@ -539,8 +564,7 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-let touchStartX = 0, touchStartY = 0;
-let touchStartTime = 0;
+let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
 
 document.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
@@ -606,14 +630,16 @@ function renderLeaderboard() {
     const listEl = document.getElementById('leaderboardList');
     const countEl = document.getElementById('leaderboardCount');
     
-    countEl.textContent = leaderboardData.length + ' 人玩过';
+    // 显示当前模式
+    const modeText = useCloud ? '☁️ 云端' : '📱 本地';
+    countEl.textContent = leaderboardData.length + ' 人玩过 · ' + modeText;
     
     if (leaderboardData.length === 0) {
         listEl.innerHTML = `
             <div class="leaderboard-empty">
                 <div class="icon">🏆</div>
                 <div>还没有人上榜</div>
-                <div style="font-size: 12px; margin-top: 8px;">成为第一个挑战者吧！</div>
+                <div style="font-size: 12px; margin-top: 8px;">${useCloud ? '开启云端以同步数据' : '成为第一个挑战者吧！'}</div>
             </div>
         `;
         return;
@@ -622,7 +648,7 @@ function renderLeaderboard() {
     let html = '';
     const myName = currentPlayerName || getPlayerName();
     
-    // 去重：同一玩家只显示最高分
+    // 去重
     const uniquePlayers = [];
     const seen = new Set();
     
@@ -660,7 +686,6 @@ function updateMyRank() {
         return;
     }
     
-    // 去重后找排名
     const uniquePlayers = [];
     const seen = new Set();
     
@@ -685,29 +710,25 @@ async function submitScore() {
     currentPlayerName = name;
     savePlayerName(name);
     
-    // 显示加载状态
     const submitBtn = document.querySelector('#gameOverModal .btn-full');
     const originalText = submitBtn.textContent;
-    submitBtn.textContent = '提交中...';
+    submitBtn.textContent = useCloud ? '提交到云端...' : '保存到本地...';
     submitBtn.disabled = true;
     
     try {
-        // 提交到云端
-        const rank = await submitScoreToCloud(name, score);
+        const rank = await submitScoreToStorage(name, score);
         
-        // 刷新排行榜
         await loadLeaderboard();
         
         if (rank) {
             document.getElementById('myRank').textContent = '#' + rank;
         }
         
-        // 关闭弹窗
         closeModal();
         
     } catch (e) {
         console.error('提交失败:', e);
-        alert('提交失败，请重试');
+        alert(useCloud ? '云端提交失败，请检查网络' : '保存失败，请重试');
     } finally {
         submitBtn.textContent = originalText;
         submitBtn.disabled = false;
@@ -721,6 +742,7 @@ function escapeHtml(text) {
 }
 
 // ==================== 初始化 ====================
+loadCloudSetting();
 document.getElementById('highScore').textContent = getHighScore();
 loadLeaderboard();
 drawGame();

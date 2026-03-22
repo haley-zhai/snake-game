@@ -489,6 +489,54 @@
             border-radius: 2px;
         }
 
+        /* 云端切换按钮 */
+        .cloud-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            padding: 10px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .cloud-toggle-label {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .cloud-toggle-btn {
+            padding: 8px 16px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            background: rgba(255,255,255,0.05);
+            color: #888;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .cloud-toggle-btn.active {
+            background: linear-gradient(135deg, rgba(0,255,136,0.3), rgba(0,204,255,0.3));
+            border-color: #00ff88;
+            color: #fff;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -40%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; transform: translate(-50%, -50%); }
+            to { opacity: 0; transform: translate(-50%, -60%); }
+        }
+
         /* 响应式 */
         @media (max-height: 700px) {
             .container {
@@ -543,6 +591,12 @@
             <button class="control-btn" id="btnNormal" onclick="setDifficulty('normal')">普通</button>
             <button class="control-btn" id="btnHard" onclick="setDifficulty('hard')">困难</button>
             <button class="control-btn" onclick="toggleSound()" id="soundBtn">🔊</button>
+        </div>
+
+        <!-- 云端开关 -->
+        <div class="cloud-toggle">
+            <span class="cloud-toggle-label">排行榜模式:</span>
+            <button class="cloud-toggle-btn" id="cloudToggleBtn" onclick="toggleCloud()">📱 本地</button>
         </div>
 
         <!-- 方向键 -->
