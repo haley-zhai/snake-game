@@ -1,6 +1,6 @@
 // ==================== 配置 ====================
 const CLOUDBASE_ENV = 'snake-game-5gvtkwf262c3ddc4';
-
+const API_BASE = 'http://134.175.187.78'; 
 // ==================== 状态管理 ====================
 let app = null;
 let db = null;
@@ -146,25 +146,16 @@ async function fetchLeaderboard() {
 }
 
 async function fetchCloudLeaderboard() {
-    const cached = loadCachedLeaderboard();
-    const cloudReady = await initCloudBase();
-    
-    if (!cloudReady || !db) {
-        console.log('[Cloud] 使用缓存数据');
-        return cached.length > 0 ? cached : [];
-    }
-    
     try {
-        const { data } = await db.collection('leaderboard')
-            .orderBy('score', 'desc')
-            .limit(50)
-            .get();
+        const res = await fetch(`${API_BASE}/api/leaderboard`);
+        const data = await res.json();
         
+        // 转换数据格式
         const scores = data.map(item => ({
             name: item.name || '匿名',
             score: parseInt(item.score) || 0,
-            date: item.date || new Date(item.timestamp).toLocaleString('zh-CN'),
-            timestamp: item.timestamp || Date.now()
+            date: new Date(item.timestamp).toLocaleString('zh-CN'),
+            timestamp: item.timestamp
         }));
         
         // 缓存到本地
@@ -172,8 +163,9 @@ async function fetchCloudLeaderboard() {
         return scores;
         
     } catch (e) {
-        console.log('[Cloud] 获取失败:', e.message);
-        return cached.length > 0 ? cached : [];
+        console.log('[API] 获取失败:', e.message);
+        // 失败时返回缓存
+        return loadCachedLeaderboard();
     }
 }
 
@@ -198,40 +190,24 @@ async function submitScoreToStorage(name, scoreValue) {
 }
 
 async function submitScoreToCloud(name, scoreValue) {
-    const cloudReady = await initCloudBase();
-    
-    if (!cloudReady || !db) {
-        console.log('[Cloud] 提交失败，云端不可用');
-        return null;
-    }
-    
     try {
-        const date = new Date().toLocaleString('zh-CN');
-        await db.collection('leaderboard').add({
-            name: name,
-            score: scoreValue,
-            date: date,
-            timestamp: Date.now()
+        const res = await fetch(`${API_BASE}/api/leaderboard`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: name,
+                score: scoreValue,
+                time: Math.floor(scoreValue / 10) + 's'  // 估算游戏时间
+            })
         });
         
-        console.log('[Cloud] 提交成功');
+        const result = await res.json();
+        console.log('[API] 提交成功:', result);
         
-        // 获取最新排名
-        const leaderboard = await fetchCloudLeaderboard();
-        const uniquePlayers = [];
-        const seen = new Set();
-        for (const item of leaderboard) {
-            if (!seen.has(item.name)) {
-                seen.add(item.name);
-                uniquePlayers.push(item);
-            }
-        }
-        
-        const rank = uniquePlayers.findIndex(item => item.name === name && item.score === scoreValue) + 1;
-        return rank > 0 ? rank : null;
+        return result.rank || null;
         
     } catch (e) {
-        console.log('[Cloud] 提交失败:', e.message);
+        console.log('[API] 提交失败:', e.message);
         return null;
     }
 }
