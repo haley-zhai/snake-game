@@ -1,5 +1,5 @@
 // ==================== 配置 ====================
-const API_BASE = 'http://134.175.187.78';
+const API_BASE = 'https://api.qinjiang.top';
 
 // ==================== 状态管理 ====================
 let leaderboardData = [];
