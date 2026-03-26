@@ -537,6 +537,65 @@
             to { opacity: 0; transform: translate(-50%, -60%); }
         }
 
+        /* 激活道具显示区 */
+        .active-powerups {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 10;
+        }
+
+        .powerup-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: rgba(0,0,0,0.7);
+            border-radius: 20px;
+            border: 2px solid;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .powerup-badge .powerup-emoji {
+            font-size: 14px;
+        }
+
+        .powerup-badge .powerup-timer {
+            font-size: 11px;
+            color: #fff;
+            font-weight: bold;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .powerup-badge .powerup-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            border-radius: 0 0 20px 20px;
+            transition: width 0.1s linear;
+        }
+
+        .powerup-badge {
+            position: relative;
+            overflow: hidden;
+        }
+
         /* 响应式 */
         @media (max-height: 700px) {
             .container {
@@ -557,7 +616,7 @@
         <div class="header">
             <h1>🐍 贪吃蛇</h1>
             <div class="subtitle">SNAKE BATTLE</div>
-            <div class="version-badge">v3.1 视觉版</div>
+            <div class="version-badge">v4.1 道具版</div>
         </div>
 
         <!-- 信息面板 -->
@@ -585,6 +644,8 @@
                 <div class="overlay-subtitle">点击开始或使用方向键</div>
                 <button class="btn-primary" onclick="startGame()">开始游戏</button>
             </div>
+            <!-- 激活道具显示区 -->
+            <div id="activePowerUps" class="active-powerups"></div>
         </div>
 
         <!-- 控制按钮 -->
@@ -645,6 +706,6 @@
     <!-- 腾讯云开发 SDK -->
     <link rel="stylesheet" href="style.css">
     <script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/1.1.1/cloudbase.full.js"></script>
-    <script src="game.js?v=3.1"></script>
+    <script src="game.js?v=4.1"></script>
 </body>
 </html>

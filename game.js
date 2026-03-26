@@ -1,6 +1,19 @@
 // ==================== 配置 ====================
 const API_BASE = 'https://api.qinjiang.top';
-const VERSION = 'v3.1';
+const VERSION = 'v4.1';
+
+// ==================== 道具系统 ====================
+const POWERUP_TYPES = {
+    SPEED: { emoji: '⚡', color: '#ff4444', glow: '#ff6666', name: '加速', duration: 5000, scoreMultiplier: 2 },
+    SLOW: { emoji: '🐌', color: '#4488ff', glow: '#66aaff', name: '减速', duration: 5000, scoreMultiplier: 1.5 },
+    GHOST: { emoji: '🌀', color: '#aa44ff', glow: '#cc66ff', name: '穿墙', duration: 5000, scoreMultiplier: 1 },
+    DOUBLE: { emoji: '💎', color: '#ffcc00', glow: '#ffdd44', name: '双倍积分', duration: 10000, scoreMultiplier: 2 }
+};
+
+let powerUps = []; // 地图上的道具
+let activePowerUps = []; // 生效中的道具
+let foodEatenCount = 0; // 已吃食物计数
+let lastSpeedChange = 0; // 速度变化时的基准速度
 
 // ==================== 状态管理 ====================
 let leaderboardData = [];
@@ -17,8 +30,11 @@ let isGameStarted = false;
 let difficulty = 'easy';
 let soundEnabled = true;
 let currentSpeed = 150;
+let baseSpeed = 150; // 基础速度
 let directionQueue = [];
 let currentPlayerName = '';
+let foodPulse = 0;
+let powerUpPulse = 0;
 
 // ==================== 粒子系统 ====================
 let particles = [];
@@ -98,8 +114,109 @@ const dpr = window.devicePixelRatio || 1;
 const gridSize = 20;
 const tileCount = 350 / gridSize;
 
-// ==================== 音频系统 ====================
+// ==================== 音频系统（v4.1 道具版）====================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+// 音效预设
+const soundPresets = {
+    eat: [
+        { freq: 600, ramp: 1200, duration: 0.15, type: 'sine' },
+        { freq: 800, ramp: 1600, duration: 0.1, type: 'triangle' }
+    ],
+    combo: [
+        { freq: 400, ramp: 800, duration: 0.2, type: 'square' },
+        { freq: 600, ramp: 1200, duration: 0.2, type: 'square' }
+    ],
+    die: [
+        { freq: 300, ramp: 100, duration: 0.5, type: 'sawtooth' }
+    ],
+    start: [
+        { freq: 440, ramp: 880, duration: 0.3, type: 'sine' }
+    ],
+    powerup: [
+        { freq: 523.25, ramp: 659.25, duration: 0.1, type: 'sine' },
+        { freq: 659.25, ramp: 783.99, duration: 0.1, type: 'sine' },
+        { freq: 783.99, ramp: 1046.50, duration: 0.2, type: 'sine' }
+    ],
+    highScore: [
+        { freq: 523.25, ramp: 659.25, duration: 0.15, type: 'sine' },
+        { freq: 659.25, ramp: 783.99, duration: 0.15, type: 'sine' },
+        { freq: 783.99, ramp: 1046.50, duration: 0.3, type: 'sine' }
+    ]
+};
+
+let bgmEnabled = false;
+let bgmOscillator = null;
+let bgmGain = null;
+
+// 播放组合音效
+function playSound(type) {
+    if (!soundEnabled) return;
+    try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        
+        const preset = soundPresets[type] || soundPresets.eat;
+        let startTime = audioCtx.currentTime;
+        
+        preset.forEach(note => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.type = note.type;
+            osc.frequency.setValueAtTime(note.freq, startTime);
+            osc.frequency.exponentialRampToValueAtTime(note.ramp, startTime + note.duration);
+            
+            gain.gain.setValueAtTime(0.3, startTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, startTime + note.duration);
+            
+            osc.start(startTime);
+            osc.stop(startTime + note.duration);
+            
+            startTime += note.duration * 0.8;
+        });
+        
+    } catch (e) {}
+}
+
+// 播放连击音效
+function playComboSound(combo) {
+    if (!soundEnabled || combo < 3) return;
+    playSound('combo');
+}
+
+// 开始背景音乐
+function startBGM() {
+    if (!bgmEnabled || bgmOscillator) return;
+    try {
+        bgmOscillator = audioCtx.createOscillator();
+        bgmGain = audioCtx.createGain();
+        
+        bgmOscillator.connect(bgmGain);
+        bgmGain.connect(audioCtx.destination);
+        
+        bgmOscillator.type = 'sine';
+        bgmOscillator.frequency.setValueAtTime(110, audioCtx.currentTime);
+        
+        // 低音背景
+        bgmGain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        
+        bgmOscillator.start();
+    } catch (e) {}
+}
+
+// 停止背景音乐
+function stopBGM() {
+    if (bgmOscillator) {
+        try {
+            bgmOscillator.stop();
+        } catch (e) {}
+        bgmOscillator = null;
+        bgmGain = null;
+    }
+}
 
 // ==================== 初始化画布 ====================
 canvas.width = 350 * dpr;
@@ -108,7 +225,9 @@ ctx.scale(dpr, dpr);
 canvas.style.width = '100%';
 
 // ==================== 食物动画 ====================
-let foodPulse = 0;
+let comboCount = 0;
+let lastEatTime = 0;
+const COMBO_TIME = 3000; // 3秒内连续吃算连击
 
 // ==================== 云端 API 接口 ====================
 
@@ -159,7 +278,7 @@ async function submitScoreToCloud(name, scoreValue) {
 }
 
 // ==================== 本地存储 ====================
-const PERSONAL_KEY = 'snakeGame_personal_v3';
+const PERSONAL_KEY = 'snakeGame_personal_v4';
 
 function getGameData() {
     try {
@@ -198,41 +317,203 @@ function savePlayerName(name) {
     saveGameData(data);
 }
 
-// ==================== 游戏核心 ====================
-function playSound(type) {
-    if (!soundEnabled) return;
-    try {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        
-        if (type === 'eat') {
-            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-            osc.start(audioCtx.currentTime);
-            osc.stop(audioCtx.currentTime + 0.15);
-        } else if (type === 'die') {
-            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.5);
-            gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-            osc.start(audioCtx.currentTime);
-            osc.stop(audioCtx.currentTime + 0.5);
-        } else if (type === 'start') {
-            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-            osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-            osc.start(audioCtx.currentTime);
-            osc.stop(audioCtx.currentTime + 0.2);
-        }
-    } catch (e) {}
+// ==================== 道具系统核心 ====================
+
+// 获取当前得分倍数
+function getScoreMultiplier() {
+    let multiplier = 1;
+    activePowerUps.forEach(p => {
+        multiplier *= p.type.scoreMultiplier;
+    });
+    return multiplier;
 }
 
+// 获取当前速度倍数
+function getSpeedMultiplier() {
+    let multiplier = 1;
+    activePowerUps.forEach(p => {
+        if (p.type === POWERUP_TYPES.SPEED) multiplier *= 2;
+        if (p.type === POWERUP_TYPES.SLOW) multiplier *= 0.5;
+    });
+    return multiplier;
+}
+
+// 检查是否有穿墙效果
+function hasGhostMode() {
+    return activePowerUps.some(p => p.type === POWERUP_TYPES.GHOST);
+}
+
+// 生成道具
+function spawnPowerUp() {
+    if (powerUps.length >= 2) return; // 最多2个道具
+    
+    const types = Object.values(POWERUP_TYPES);
+    const randomType = types[Math.floor(Math.random() * types.length)];
+    
+    let attempts = 0;
+    let position;
+    do {
+        position = {
+            x: Math.floor(Math.random() * tileCount),
+            y: Math.floor(Math.random() * tileCount)
+        };
+        attempts++;
+    } while (attempts < 100 && (
+        snake.some(s => s.x === position.x && s.y === position.y) ||
+        (food.x === position.x && food.y === position.y) ||
+        powerUps.some(p => p.x === position.x && p.y === position.y)
+    ));
+    
+    const powerUp = {
+        x: position.x,
+        y: position.y,
+        type: randomType,
+        spawnTime: Date.now(),
+        id: Date.now() + Math.random()
+    };
+    
+    powerUps.push(powerUp);
+    console.log('[道具] 生成:', randomType.name);
+}
+
+// 拾取道具
+function collectPowerUp(powerUp, index) {
+    // 移除地图上的道具
+    powerUps.splice(index, 1);
+    
+    // 添加到生效列表
+    const activePowerUp = {
+        type: powerUp.type,
+        startTime: Date.now(),
+        endTime: Date.now() + powerUp.type.duration
+    };
+    activePowerUps.push(activePowerUp);
+    
+    // 播放音效
+    playSound('powerup');
+    vibrate(30);
+    
+    // 生成粒子效果
+    const px = powerUp.x * gridSize + gridSize/2;
+    const py = powerUp.y * gridSize + gridSize/2;
+    spawnParticles(px, py, powerUp.type.color, 25);
+    
+    // 应用速度变化
+    updateGameSpeed();
+    
+    console.log('[道具] 拾取:', powerUp.type.name);
+}
+
+// 更新游戏速度
+function updateGameSpeed() {
+    const speedMult = getSpeedMultiplier();
+    const newSpeed = Math.max(30, baseSpeed / speedMult); // 最慢30ms
+    
+    if (newSpeed !== currentSpeed) {
+        currentSpeed = newSpeed;
+        if (gameLoop) {
+            clearInterval(gameLoop);
+            gameLoop = setInterval(updateGame, currentSpeed);
+        }
+    }
+}
+
+// 更新道具状态
+function updatePowerUps() {
+    const now = Date.now();
+    let changed = false;
+    
+    // 检查地图上的道具是否过期
+    for (let i = powerUps.length - 1; i >= 0; i--) {
+        if (now - powerUps[i].spawnTime > 8000) { // 8秒过期
+            powerUps.splice(i, 1);
+            changed = true;
+        }
+    }
+    
+    // 检查生效中的道具是否过期
+    const prevSpeedMult = getSpeedMultiplier();
+    for (let i = activePowerUps.length - 1; i >= 0; i--) {
+        if (now > activePowerUps[i].endTime) {
+            console.log('[道具] 效果结束:', activePowerUps[i].type.name);
+            activePowerUps.splice(i, 1);
+            changed = true;
+        }
+    }
+    
+    // 速度变化时更新
+    if (getSpeedMultiplier() !== prevSpeedMult) {
+        updateGameSpeed();
+    }
+    
+    return changed;
+}
+
+// 绘制道具
+function drawPowerUps() {
+    powerUpPulse += 0.08;
+    
+    powerUps.forEach(p => {
+        const px = p.x * gridSize + gridSize/2;
+        const py = p.y * gridSize + gridSize/2;
+        
+        // 光晕效果
+        const pulse = Math.sin(powerUpPulse) * 3;
+        ctx.shadowBlur = 15 + pulse;
+        ctx.shadowColor = p.type.glow;
+        
+        // 背景圆形
+        ctx.fillStyle = p.type.color;
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        ctx.arc(px, py, gridSize/2 - 2 + pulse/3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 绘制emoji
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 10;
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(p.type.emoji, px, py);
+        
+        ctx.shadowBlur = 0;
+    });
+}
+
+// 更新道具UI显示
+function updatePowerUpUI() {
+    const container = document.getElementById('activePowerUps');
+    if (!container) return;
+    
+    if (activePowerUps.length === 0) {
+        container.innerHTML = '';
+        container.style.display = 'none';
+        return;
+    }
+    
+    container.style.display = 'flex';
+    let html = '';
+    const now = Date.now();
+    
+    activePowerUps.forEach(p => {
+        const remaining = Math.max(0, p.endTime - now);
+        const seconds = Math.ceil(remaining / 1000);
+        const percent = remaining / p.type.duration;
+        
+        html += `
+            <div class="powerup-badge" style="border-color: ${p.type.color}">
+                <span class="powerup-emoji">${p.type.emoji}</span>
+                <span class="powerup-timer">${seconds}s</span>
+                <div class="powerup-bar" style="width: ${percent * 100}%; background: ${p.type.color}"></div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// ==================== 游戏核心 ====================
 function vibrate(ms = 30) {
     if (navigator.vibrate) navigator.vibrate(ms);
 }
@@ -263,7 +544,12 @@ function drawGame() {
         const x = seg.x * gridSize;
         const y = seg.y * gridSize;
         
-        if (i === 0) {
+        // 穿墙模式下蛇身发光
+        if (hasGhostMode() && i === 0) {
+            ctx.fillStyle = '#aa44ff';
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#cc66ff';
+        } else if (i === 0) {
             // 蛇头 - 发光效果
             ctx.fillStyle = '#00ff88';
             ctx.shadowBlur = 20;
@@ -314,10 +600,17 @@ function drawGame() {
     ctx.fill();
     
     ctx.shadowBlur = 0;
+    
+    // 绘制道具
+    drawPowerUps();
 }
 
 function updateGame() {
     if (isPaused || isGameOver) return;
+
+    // 更新道具状态
+    updatePowerUps();
+    updatePowerUpUI();
 
     if (directionQueue.length > 0) {
         const dir = directionQueue.shift();
@@ -327,11 +620,22 @@ function updateGame() {
 
     const head = {x: snake[0].x + dx, y: snake[0].y + dy};
 
-    if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+    // 穿墙处理
+    let wrapped = false;
+    if (hasGhostMode()) {
+        if (head.x < 0) { head.x = tileCount - 1; wrapped = true; }
+        if (head.x >= tileCount) { head.x = 0; wrapped = true; }
+        if (head.y < 0) { head.y = tileCount - 1; wrapped = true; }
+        if (head.y >= tileCount) { head.y = 0; wrapped = true; }
+    }
+
+    // 撞墙检测
+    if (!hasGhostMode() && (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount)) {
         gameOver();
         return;
     }
 
+    // 撞自己检测
     for (let i = 0; i < snake.length; i++) {
         if (head.x === snake[i].x && head.y === snake[i].y) {
             gameOver();
@@ -341,8 +645,11 @@ function updateGame() {
 
     snake.unshift(head);
 
+    // 吃食物检测
     if (head.x === food.x && head.y === food.y) {
-        score += 10;
+        const multiplier = getScoreMultiplier();
+        const points = Math.floor(10 * multiplier);
+        score += points;
         document.getElementById('score').textContent = score;
         
         // 分数变化动画
@@ -358,15 +665,31 @@ function updateGame() {
         const fy = food.y * gridSize + gridSize/2;
         spawnParticles(fx, fy, '#00ff88', 20);
         
-        if (score % 50 === 0 && currentSpeed > 50) {
-            currentSpeed -= 5;
-            clearInterval(gameLoop);
-            gameLoop = setInterval(updateGame, currentSpeed);
+        // 食物计数和道具生成
+        foodEatenCount++;
+        if (foodEatenCount % 3 === 0) {
+            // 30%概率生成道具
+            if (Math.random() < 0.3) {
+                spawnPowerUp();
+            }
+        }
+        
+        // 速度增加
+        if (score % 50 === 0 && baseSpeed > 50) {
+            baseSpeed -= 5;
+            updateGameSpeed();
         }
         
         placeFood();
     } else {
         snake.pop();
+    }
+
+    // 吃道具检测
+    for (let i = powerUps.length - 1; i >= 0; i--) {
+        if (head.x === powerUps[i].x && head.y === powerUps[i].y) {
+            collectPowerUp(powerUps[i], i);
+        }
     }
 
     drawGame();
@@ -382,7 +705,10 @@ function placeFood() {
             y: Math.floor(Math.random() * tileCount)
         };
         attempts++;
-    } while (attempts < 100 && snake.some(s => s.x === f.x && s.y === f.y));
+    } while (attempts < 100 && (
+        snake.some(s => s.x === f.x && s.y === f.y) ||
+        powerUps.some(p => p.x === f.x && p.y === f.y)
+    ));
     food = f;
 }
 
@@ -414,7 +740,7 @@ async function gameOver() {
     document.getElementById('finalScore').textContent = score;
     const finalScoreEl = document.getElementById('finalScore');
     if (isNewRecord) {
-        finalScoreEl.innerHTML = score + '<div style="font-size:14px;color:#ffd700;margin-top:8px;"🎉 新纪录！</div>';
+        finalScoreEl.innerHTML = score + '<div style="font-size:14px;color:#ffd700;margin-top:8px;">🎉 新纪录！</div>';
         finalScoreEl.classList.add('new-record');
     } else {
         finalScoreEl.classList.remove('new-record');
@@ -431,6 +757,7 @@ async function gameOver() {
 function startGame() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     
+    // 重置游戏状态
     snake = [{x: 10, y: 10}];
     dx = 1;
     dy = 0;
@@ -439,11 +766,16 @@ function startGame() {
     isGameOver = false;
     isPaused = false;
     isGameStarted = true;
-    currentSpeed = difficulties[difficulty].speed;
+    baseSpeed = difficulties[difficulty].speed;
+    currentSpeed = baseSpeed;
+    foodEatenCount = 0;
+    powerUps = [];
+    activePowerUps = [];
     
     document.getElementById('score').textContent = '0';
     document.getElementById('gameOverlay').classList.add('hidden');
     document.getElementById('myRank').textContent = '-';
+    updatePowerUpUI();
     
     playSound('start');
     placeFood();
@@ -543,7 +875,12 @@ function toggleSound() {
 
 function setDifficulty(d) {
     difficulty = d;
-    currentSpeed = difficulties[d].speed;
+    baseSpeed = difficulties[d].speed;
+    if (activePowerUps.length === 0) {
+        currentSpeed = baseSpeed;
+    } else {
+        updateGameSpeed();
+    }
     
     document.querySelectorAll('.control-btn').forEach(btn => {
         btn.classList.remove('active');
@@ -679,5 +1016,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadLeaderboard();
     drawGame();
     
-    console.log(`🐍 贪吃蛇 ${VERSION} 已加载`);
+    console.log(`🐍 贪吃蛇 ${VERSION} 道具版已加载`);
 });
