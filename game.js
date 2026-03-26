@@ -3,17 +3,12 @@ const API_BASE = 'https://api.qinjiang.top';
 const VERSION = 'v4.1';
 
 // ==================== 道具系统 ====================
-const POWERUP_TYPES = {
-    SPEED: { emoji: '⚡', color: '#ff4444', glow: '#ff6666', name: '加速', duration: 5000, scoreMultiplier: 2 },
-    SLOW: { emoji: '🐌', color: '#4488ff', glow: '#66aaff', name: '减速', duration: 5000, scoreMultiplier: 1.5 },
-    GHOST: { emoji: '🌀', color: '#aa44ff', glow: '#cc66ff', name: '穿墙', duration: 5000, scoreMultiplier: 1 },
-    DOUBLE: { emoji: '💎', color: '#ffcc00', glow: '#ffdd44', name: '双倍积分', duration: 10000, scoreMultiplier: 2 }
+const POWERUPS = {
+    speed: { emoji: '⚡', color: '#ff4444', duration: 5000, multiplier: 2, name: '加速' },
+    slow: { emoji: '🐌', color: '#4444ff', duration: 5000, multiplier: 1.5, name: '减速' },
+    ghost: { emoji: '🌀', color: '#9944ff', duration: 5000, multiplier: 1, name: '穿墙' },
+    double: { emoji: '💎', color: '#ffd700', duration: 10000, multiplier: 2, name: '双倍' }
 };
-
-let powerUps = []; // 地图上的道具
-let activePowerUps = []; // 生效中的道具
-let foodEatenCount = 0; // 已吃食物计数
-let lastSpeedChange = 0; // 速度变化时的基准速度
 
 // ==================== 状态管理 ====================
 let leaderboardData = [];
@@ -30,11 +25,15 @@ let isGameStarted = false;
 let difficulty = 'easy';
 let soundEnabled = true;
 let currentSpeed = 150;
-let baseSpeed = 150; // 基础速度
 let directionQueue = [];
 let currentPlayerName = '';
-let foodPulse = 0;
-let powerUpPulse = 0;
+
+// ==================== 道具状态 ====================
+let powerups = []; // 地图上的道具
+let activePowerups = {}; // 激活的道具效果
+let foodSinceLastPowerup = 0; // 吃掉食物计数
+let baseSpeed = 150; // 基础速度
+let scoreMultiplier = 1; // 得分倍率
 
 // ==================== 粒子系统 ====================
 let particles = [];
@@ -114,108 +113,52 @@ const dpr = window.devicePixelRatio || 1;
 const gridSize = 20;
 const tileCount = 350 / gridSize;
 
-// ==================== 音频系统（v4.1 道具版）====================
+// ==================== 音频系统 ====================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-// 音效预设
-const soundPresets = {
-    eat: [
-        { freq: 600, ramp: 1200, duration: 0.15, type: 'sine' },
-        { freq: 800, ramp: 1600, duration: 0.1, type: 'triangle' }
-    ],
-    combo: [
-        { freq: 400, ramp: 800, duration: 0.2, type: 'square' },
-        { freq: 600, ramp: 1200, duration: 0.2, type: 'square' }
-    ],
-    die: [
-        { freq: 300, ramp: 100, duration: 0.5, type: 'sawtooth' }
-    ],
-    start: [
-        { freq: 440, ramp: 880, duration: 0.3, type: 'sine' }
-    ],
-    powerup: [
-        { freq: 523.25, ramp: 659.25, duration: 0.1, type: 'sine' },
-        { freq: 659.25, ramp: 783.99, duration: 0.1, type: 'sine' },
-        { freq: 783.99, ramp: 1046.50, duration: 0.2, type: 'sine' }
-    ],
-    highScore: [
-        { freq: 523.25, ramp: 659.25, duration: 0.15, type: 'sine' },
-        { freq: 659.25, ramp: 783.99, duration: 0.15, type: 'sine' },
-        { freq: 783.99, ramp: 1046.50, duration: 0.3, type: 'sine' }
-    ]
-};
-
-let bgmEnabled = false;
-let bgmOscillator = null;
-let bgmGain = null;
-
-// 播放组合音效
 function playSound(type) {
     if (!soundEnabled) return;
     try {
         if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
         
-        const preset = soundPresets[type] || soundPresets.eat;
-        let startTime = audioCtx.currentTime;
-        
-        preset.forEach(note => {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            
-            osc.type = note.type;
-            osc.frequency.setValueAtTime(note.freq, startTime);
-            osc.frequency.exponentialRampToValueAtTime(note.ramp, startTime + note.duration);
-            
-            gain.gain.setValueAtTime(0.3, startTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, startTime + note.duration);
-            
-            osc.start(startTime);
-            osc.stop(startTime + note.duration);
-            
-            startTime += note.duration * 0.8;
-        });
-        
+        if (type === 'eat') {
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.15);
+        } else if (type === 'die') {
+            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.5);
+        } else if (type === 'start') {
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.2);
+        } else if (type === 'powerup') {
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.2);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.3);
+        }
     } catch (e) {}
 }
 
-// 播放连击音效
-function playComboSound(combo) {
-    if (!soundEnabled || combo < 3) return;
-    playSound('combo');
-}
-
-// 开始背景音乐
-function startBGM() {
-    if (!bgmEnabled || bgmOscillator) return;
-    try {
-        bgmOscillator = audioCtx.createOscillator();
-        bgmGain = audioCtx.createGain();
-        
-        bgmOscillator.connect(bgmGain);
-        bgmGain.connect(audioCtx.destination);
-        
-        bgmOscillator.type = 'sine';
-        bgmOscillator.frequency.setValueAtTime(110, audioCtx.currentTime);
-        
-        // 低音背景
-        bgmGain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-        
-        bgmOscillator.start();
-    } catch (e) {}
-}
-
-// 停止背景音乐
-function stopBGM() {
-    if (bgmOscillator) {
-        try {
-            bgmOscillator.stop();
-        } catch (e) {}
-        bgmOscillator = null;
-        bgmGain = null;
-    }
+function vibrate(ms = 30) {
+    if (navigator.vibrate) navigator.vibrate(ms);
 }
 
 // ==================== 初始化画布 ====================
@@ -225,13 +168,9 @@ ctx.scale(dpr, dpr);
 canvas.style.width = '100%';
 
 // ==================== 食物动画 ====================
-let comboCount = 0;
-let lastEatTime = 0;
-const COMBO_TIME = 3000; // 3秒内连续吃算连击
+let foodPulse = 0;
 
 // ==================== 云端 API 接口 ====================
-
-// 获取排行榜（强制云端）
 async function fetchLeaderboard() {
     try {
         const res = await fetch(`${API_BASE}/api/leaderboard`);
@@ -244,17 +183,13 @@ async function fetchLeaderboard() {
             timestamp: item.timestamp
         }));
         
-        console.log('[API] 排行榜获取成功:', leaderboardData.length, '条记录');
         return leaderboardData;
-        
     } catch (e) {
-        console.log('[API] 获取失败:', e.message);
         leaderboardData = [];
         return [];
     }
 }
 
-// 提交分数到云端
 async function submitScoreToCloud(name, scoreValue) {
     try {
         const res = await fetch(`${API_BASE}/api/leaderboard`, {
@@ -268,17 +203,14 @@ async function submitScoreToCloud(name, scoreValue) {
         });
         
         const result = await res.json();
-        console.log('[API] 提交成功:', result);
         return result.rank || null;
-        
     } catch (e) {
-        console.log('[API] 提交失败:', e.message);
         return null;
     }
 }
 
 // ==================== 本地存储 ====================
-const PERSONAL_KEY = 'snakeGame_personal_v4';
+const PERSONAL_KEY = 'snakeGame_personal_v3';
 
 function getGameData() {
     try {
@@ -317,206 +249,123 @@ function savePlayerName(name) {
     saveGameData(data);
 }
 
-// ==================== 道具系统核心 ====================
-
-// 获取当前得分倍数
-function getScoreMultiplier() {
-    let multiplier = 1;
-    activePowerUps.forEach(p => {
-        multiplier *= p.type.scoreMultiplier;
-    });
-    return multiplier;
-}
-
-// 获取当前速度倍数
-function getSpeedMultiplier() {
-    let multiplier = 1;
-    activePowerUps.forEach(p => {
-        if (p.type === POWERUP_TYPES.SPEED) multiplier *= 2;
-        if (p.type === POWERUP_TYPES.SLOW) multiplier *= 0.5;
-    });
-    return multiplier;
-}
-
-// 检查是否有穿墙效果
-function hasGhostMode() {
-    return activePowerUps.some(p => p.type === POWERUP_TYPES.GHOST);
-}
+// ==================== 道具系统函数 ====================
 
 // 生成道具
-function spawnPowerUp() {
-    if (powerUps.length >= 2) return; // 最多2个道具
+function spawnPowerup() {
+    if (powerups.length >= 2) return; // 最多2个道具
     
-    const types = Object.values(POWERUP_TYPES);
-    const randomType = types[Math.floor(Math.random() * types.length)];
+    const types = Object.keys(POWERUPS);
+    const type = types[Math.floor(Math.random() * types.length)];
     
     let attempts = 0;
-    let position;
+    let pu;
     do {
-        position = {
+        pu = {
             x: Math.floor(Math.random() * tileCount),
-            y: Math.floor(Math.random() * tileCount)
+            y: Math.floor(Math.random() * tileCount),
+            type: type,
+            createdAt: Date.now()
         };
         attempts++;
     } while (attempts < 100 && (
-        snake.some(s => s.x === position.x && s.y === position.y) ||
-        (food.x === position.x && food.y === position.y) ||
-        powerUps.some(p => p.x === position.x && p.y === position.y)
+        snake.some(s => s.x === pu.x && s.y === pu.y) ||
+        (food.x === pu.x && food.y === pu.y) ||
+        powerups.some(p => p.x === pu.x && p.y === pu.y)
     ));
     
-    const powerUp = {
-        x: position.x,
-        y: position.y,
-        type: randomType,
-        spawnTime: Date.now(),
-        id: Date.now() + Math.random()
-    };
-    
-    powerUps.push(powerUp);
-    console.log('[道具] 生成:', randomType.name);
+    powerups.push(pu);
 }
 
-// 拾取道具
-function collectPowerUp(powerUp, index) {
-    // 移除地图上的道具
-    powerUps.splice(index, 1);
-    
-    // 添加到生效列表
-    const activePowerUp = {
-        type: powerUp.type,
-        startTime: Date.now(),
-        endTime: Date.now() + powerUp.type.duration
+// 清理过期道具
+function cleanupPowerups() {
+    const now = Date.now();
+    powerups = powerups.filter(p => now - p.createdAt < 8000); // 8秒过期
+}
+
+// 激活道具效果
+function activatePowerup(type) {
+    const pu = POWERUPS[type];
+    activePowerups[type] = {
+        expiresAt: Date.now() + pu.duration,
+        ...pu
     };
-    activePowerUps.push(activePowerUp);
+    
+    // 应用效果
+    updatePowerupEffects();
     
     // 播放音效
     playSound('powerup');
-    vibrate(30);
+    vibrate(50);
     
-    // 生成粒子效果
-    const px = powerUp.x * gridSize + gridSize/2;
-    const py = powerUp.y * gridSize + gridSize/2;
-    spawnParticles(px, py, powerUp.type.color, 25);
-    
-    // 应用速度变化
-    updateGameSpeed();
-    
-    console.log('[道具] 拾取:', powerUp.type.name);
+    // 更新UI
+    updatePowerupUI();
 }
 
-// 更新游戏速度
-function updateGameSpeed() {
-    const speedMult = getSpeedMultiplier();
-    const newSpeed = Math.max(30, baseSpeed / speedMult); // 最慢30ms
+// 更新道具效果
+function updatePowerupEffects() {
+    let speedMod = 1;
+    scoreMultiplier = 1;
     
-    if (newSpeed !== currentSpeed) {
-        currentSpeed = newSpeed;
-        if (gameLoop) {
-            clearInterval(gameLoop);
-            gameLoop = setInterval(updateGame, currentSpeed);
+    for (const [type, data] of Object.entries(activePowerups)) {
+        if (Date.now() < data.expiresAt) {
+            if (type === 'speed') speedMod *= 0.5;
+            if (type === 'slow') speedMod *= 2;
+            scoreMultiplier = Math.max(scoreMultiplier, data.multiplier);
         }
+    }
+    
+    currentSpeed = Math.max(30, Math.min(300, baseSpeed * speedMod));
+    
+    // 更新游戏循环速度
+    if (gameLoop && isGameStarted && !isGameOver && !isPaused) {
+        clearInterval(gameLoop);
+        gameLoop = setInterval(updateGame, currentSpeed);
     }
 }
 
-// 更新道具状态
-function updatePowerUps() {
+// 清理过期道具效果
+function cleanupActivePowerups() {
     const now = Date.now();
-    let changed = false;
+    let hasExpired = false;
     
-    // 检查地图上的道具是否过期
-    for (let i = powerUps.length - 1; i >= 0; i--) {
-        if (now - powerUps[i].spawnTime > 8000) { // 8秒过期
-            powerUps.splice(i, 1);
-            changed = true;
+    for (const type of Object.keys(activePowerups)) {
+        if (now >= activePowerups[type].expiresAt) {
+            delete activePowerups[type];
+            hasExpired = true;
         }
     }
     
-    // 检查生效中的道具是否过期
-    const prevSpeedMult = getSpeedMultiplier();
-    for (let i = activePowerUps.length - 1; i >= 0; i--) {
-        if (now > activePowerUps[i].endTime) {
-            console.log('[道具] 效果结束:', activePowerUps[i].type.name);
-            activePowerUps.splice(i, 1);
-            changed = true;
-        }
+    if (hasExpired) {
+        updatePowerupEffects();
+        updatePowerupUI();
     }
-    
-    // 速度变化时更新
-    if (getSpeedMultiplier() !== prevSpeedMult) {
-        updateGameSpeed();
-    }
-    
-    return changed;
 }
 
-// 绘制道具
-function drawPowerUps() {
-    powerUpPulse += 0.08;
-    
-    powerUps.forEach(p => {
-        const px = p.x * gridSize + gridSize/2;
-        const py = p.y * gridSize + gridSize/2;
-        
-        // 光晕效果
-        const pulse = Math.sin(powerUpPulse) * 3;
-        ctx.shadowBlur = 15 + pulse;
-        ctx.shadowColor = p.type.glow;
-        
-        // 背景圆形
-        ctx.fillStyle = p.type.color;
-        ctx.globalAlpha = 0.3;
-        ctx.beginPath();
-        ctx.arc(px, py, gridSize/2 - 2 + pulse/3, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // 绘制emoji
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 10;
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(p.type.emoji, px, py);
-        
-        ctx.shadowBlur = 0;
-    });
-}
-
-// 更新道具UI显示
-function updatePowerUpUI() {
-    const container = document.getElementById('activePowerUps');
+// 更新道具UI
+function updatePowerupUI() {
+    const container = document.getElementById('activePowerups');
     if (!container) return;
     
-    if (activePowerUps.length === 0) {
-        container.innerHTML = '';
-        container.style.display = 'none';
-        return;
-    }
-    
-    container.style.display = 'flex';
-    let html = '';
     const now = Date.now();
+    let html = '';
     
-    activePowerUps.forEach(p => {
-        const remaining = Math.max(0, p.endTime - now);
+    for (const [type, data] of Object.entries(activePowerups)) {
+        const remaining = Math.max(0, data.expiresAt - now);
         const seconds = Math.ceil(remaining / 1000);
-        const percent = remaining / p.type.duration;
         
         html += `
-            <div class="powerup-badge" style="border-color: ${p.type.color}">
-                <span class="powerup-emoji">${p.type.emoji}</span>
-                <span class="powerup-timer">${seconds}s</span>
-                <div class="powerup-bar" style="width: ${percent * 100}%; background: ${p.type.color}"></div>
+            <div class="powerup-badge" style="--pu-color: ${data.color}">
+                <span class="pu-emoji">${data.emoji}</span>
+                <span class="pu-time">${seconds}s</span>
             </div>
         `;
-    });
+    }
     
     container.innerHTML = html;
 }
 
 // ==================== 游戏核心 ====================
-function vibrate(ms = 30) {
-    if (navigator.vibrate) navigator.vibrate(ms);
-}
 
 function drawGame() {
     // 清空画布
@@ -524,11 +373,10 @@ function drawGame() {
     ctx.fillRect(0, 0, 350, 350);
 
     // 绘制发光网格
-    ctx.strokeStyle = 'rgba(0,255,136,0.03)';
-    ctx.lineWidth = 0.5;
     for (let i = 0; i <= tileCount; i++) {
         const alpha = 0.02 + Math.sin(Date.now() * 0.001 + i * 0.1) * 0.01;
         ctx.strokeStyle = `rgba(0,255,136,${alpha})`;
+        ctx.lineWidth = 0.5;
         ctx.beginPath();
         ctx.moveTo(i * gridSize, 0);
         ctx.lineTo(i * gridSize, 350);
@@ -540,24 +388,23 @@ function drawGame() {
     }
 
     // 绘制蛇身
+    const isGhost = activePowerups.ghost && Date.now() < activePowerups.ghost.expiresAt;
+    
     snake.forEach((seg, i) => {
         const x = seg.x * gridSize;
         const y = seg.y * gridSize;
         
-        // 穿墙模式下蛇身发光
-        if (hasGhostMode() && i === 0) {
-            ctx.fillStyle = '#aa44ff';
-            ctx.shadowBlur = 25;
-            ctx.shadowColor = '#cc66ff';
-        } else if (i === 0) {
-            // 蛇头 - 发光效果
-            ctx.fillStyle = '#00ff88';
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#00ff88';
+        ctx.save();
+        
+        if (i === 0) {
+            // 蛇头
+            ctx.fillStyle = isGhost ? '#9944ff' : '#00ff88';
+            ctx.shadowBlur = isGhost ? 30 : 20;
+            ctx.shadowColor = isGhost ? '#9944ff' : '#00ff88';
+            ctx.globalAlpha = isGhost ? 0.7 : 1;
         } else {
-            // 蛇身 - 渐变透明度
             const alpha = Math.max(0.3, 0.9 - i * 0.02);
-            ctx.fillStyle = `rgba(0,255,136,${alpha})`;
+            ctx.fillStyle = isGhost ? `rgba(153,68,255,${alpha * 0.7})` : `rgba(0,255,136,${alpha})`;
             ctx.shadowBlur = 0;
         }
         
@@ -571,46 +418,72 @@ function drawGame() {
             ctx.fillRect(x + 6, y + 6, 3, 3);
             ctx.fillRect(x + 13, y + 6, 3, 3);
         }
+        
+        ctx.restore();
     });
 
-    ctx.shadowBlur = 0;
-
-    // 绘制食物 - 脉冲发光效果
+    // 绘制食物
+    foodPulse += 0.05;
+    const pulseSize = Math.sin(foodPulse) * 2;
     const fx = food.x * gridSize + gridSize/2;
     const fy = food.y * gridSize + gridSize/2;
     
-    foodPulse += 0.05;
-    const pulseSize = Math.sin(foodPulse) * 2;
-    
-    // 外发光
     ctx.fillStyle = '#ff6b6b';
     ctx.shadowBlur = 20 + pulseSize * 2;
     ctx.shadowColor = '#ff6b6b';
-    
-    // 食物本体
     ctx.beginPath();
     ctx.arc(fx, fy, gridSize/2 - 3, 0, Math.PI * 2);
     ctx.fill();
     
-    // 内部高光
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#ff9999';
     ctx.beginPath();
     ctx.arc(fx - 2, fy - 2, gridSize/5, 0, Math.PI * 2);
     ctx.fill();
-    
-    ctx.shadowBlur = 0;
-    
+
     // 绘制道具
-    drawPowerUps();
+    cleanupPowerups();
+    powerups.forEach(pu => {
+        const px = pu.x * gridSize + gridSize/2;
+        const py = pu.y * gridSize + gridSize/2;
+        const config = POWERUPS[pu.type];
+        const age = Date.now() - pu.createdAt;
+        const remaining = 8000 - age;
+        const blink = remaining < 2000 ? Math.sin(Date.now() * 0.02) * 0.3 + 0.7 : 1;
+        
+        ctx.save();
+        ctx.globalAlpha = blink;
+        
+        // 光晕效果
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = config.color;
+        ctx.fillStyle = config.color;
+        ctx.beginPath();
+        ctx.arc(px, py, gridSize/2 - 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // emoji
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#fff';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(config.emoji, px, py + 1);
+        
+        ctx.restore();
+    });
 }
 
 function updateGame() {
     if (isPaused || isGameOver) return;
 
-    // 更新道具状态
-    updatePowerUps();
-    updatePowerUpUI();
+    // 清理过期道具效果
+    cleanupActivePowerups();
+    
+    // 更新道具UI倒计时
+    if (Object.keys(activePowerups).length > 0) {
+        updatePowerupUI();
+    }
 
     if (directionQueue.length > 0) {
         const dir = directionQueue.shift();
@@ -620,19 +493,20 @@ function updateGame() {
 
     const head = {x: snake[0].x + dx, y: snake[0].y + dy};
 
-    // 穿墙处理
-    let wrapped = false;
-    if (hasGhostMode()) {
-        if (head.x < 0) { head.x = tileCount - 1; wrapped = true; }
-        if (head.x >= tileCount) { head.x = 0; wrapped = true; }
-        if (head.y < 0) { head.y = tileCount - 1; wrapped = true; }
-        if (head.y >= tileCount) { head.y = 0; wrapped = true; }
-    }
-
-    // 撞墙检测
-    if (!hasGhostMode() && (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount)) {
-        gameOver();
-        return;
+    // 穿墙检测
+    const isGhost = activePowerups.ghost && Date.now() < activePowerups.ghost.expiresAt;
+    
+    if (!isGhost) {
+        if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+            gameOver();
+            return;
+        }
+    } else {
+        // 穿墙模式
+        if (head.x < 0) head.x = tileCount - 1;
+        if (head.x >= tileCount) head.x = 0;
+        if (head.y < 0) head.y = tileCount - 1;
+        if (head.y >= tileCount) head.y = 0;
     }
 
     // 撞自己检测
@@ -645,14 +519,12 @@ function updateGame() {
 
     snake.unshift(head);
 
-    // 吃食物检测
+    // 吃食物
     if (head.x === food.x && head.y === food.y) {
-        const multiplier = getScoreMultiplier();
-        const points = Math.floor(10 * multiplier);
+        const points = Math.floor(10 * scoreMultiplier);
         score += points;
         document.getElementById('score').textContent = score;
         
-        // 分数变化动画
         const scoreEl = document.getElementById('score');
         scoreEl.parentElement.classList.add('changed');
         setTimeout(() => scoreEl.parentElement.classList.remove('changed'), 300);
@@ -660,36 +532,35 @@ function updateGame() {
         playSound('eat');
         vibrate(20);
         
-        // 生成粒子效果
         const fx = food.x * gridSize + gridSize/2;
         const fy = food.y * gridSize + gridSize/2;
         spawnParticles(fx, fy, '#00ff88', 20);
         
-        // 食物计数和道具生成
-        foodEatenCount++;
-        if (foodEatenCount % 3 === 0) {
-            // 30%概率生成道具
+        // 道具生成逻辑
+        foodSinceLastPowerup++;
+        if (foodSinceLastPowerup >= 3) {
             if (Math.random() < 0.3) {
-                spawnPowerUp();
+                spawnPowerup();
             }
-        }
-        
-        // 速度增加
-        if (score % 50 === 0 && baseSpeed > 50) {
-            baseSpeed -= 5;
-            updateGameSpeed();
+            foodSinceLastPowerup = 0;
         }
         
         placeFood();
     } else {
-        snake.pop();
-    }
-
-    // 吃道具检测
-    for (let i = powerUps.length - 1; i >= 0; i--) {
-        if (head.x === powerUps[i].x && head.y === powerUps[i].y) {
-            collectPowerUp(powerUps[i], i);
+        // 吃道具检测
+        const puIndex = powerups.findIndex(p => p.x === head.x && p.y === head.y);
+        if (puIndex !== -1) {
+            const pu = powerups[puIndex];
+            activatePowerup(pu.type);
+            powerups.splice(puIndex, 1);
+            
+            // 道具粒子效果
+            const px = head.x * gridSize + gridSize/2;
+            const py = head.y * gridSize + gridSize/2;
+            spawnParticles(px, py, POWERUPS[pu.type].color, 25);
         }
+        
+        snake.pop();
     }
 
     drawGame();
@@ -707,7 +578,7 @@ function placeFood() {
         attempts++;
     } while (attempts < 100 && (
         snake.some(s => s.x === f.x && s.y === f.y) ||
-        powerUps.some(p => p.x === f.x && p.y === f.y)
+        powerups.some(p => p.x === f.x && p.y === f.y)
     ));
     food = f;
 }
@@ -719,13 +590,11 @@ async function gameOver() {
     playSound('die');
     vibrate([50, 50, 100]);
     
-    // 死亡粒子效果
     const head = snake[0];
     const hx = head.x * gridSize + gridSize/2;
     const hy = head.y * gridSize + gridSize/2;
     spawnParticles(hx, hy, '#ff6b6b', 30);
     
-    // 动画循环直到粒子消失
     const particleLoop = setInterval(() => {
         drawGame();
         updateParticles();
@@ -757,7 +626,12 @@ async function gameOver() {
 function startGame() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     
-    // 重置游戏状态
+    // 重置道具状态
+    powerups = [];
+    activePowerups = {};
+    foodSinceLastPowerup = 0;
+    scoreMultiplier = 1;
+    
     snake = [{x: 10, y: 10}];
     dx = 1;
     dy = 0;
@@ -768,14 +642,14 @@ function startGame() {
     isGameStarted = true;
     baseSpeed = difficulties[difficulty].speed;
     currentSpeed = baseSpeed;
-    foodEatenCount = 0;
-    powerUps = [];
-    activePowerUps = [];
     
     document.getElementById('score').textContent = '0';
     document.getElementById('gameOverlay').classList.add('hidden');
     document.getElementById('myRank').textContent = '-';
-    updatePowerUpUI();
+    
+    // 清空道具UI
+    const puContainer = document.getElementById('activePowerups');
+    if (puContainer) puContainer.innerHTML = '';
     
     playSound('start');
     placeFood();
@@ -832,144 +706,100 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
-
+// 触摸控制
+let touchStartX = 0, touchStartY = 0;
 document.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
-    touchStartTime = Date.now();
-}, {passive: true});
-
-document.addEventListener('touchmove', (e) => {
-    if (isGameStarted && !isPaused && !isGameOver) {
-        e.preventDefault();
-    }
-}, {passive: false});
+}, { passive: true });
 
 document.addEventListener('touchend', (e) => {
-    const touchDuration = Date.now() - touchStartTime;
-    const tdx = e.changedTouches[0].clientX - touchStartX;
-    const tdy = e.changedTouches[0].clientY - touchStartY;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    const minSwipe = 30;
     
-    if (touchDuration < 200 && Math.abs(tdx) < 10 && Math.abs(tdy) < 10) return;
-    if (Math.abs(tdx) < 25 && Math.abs(tdy) < 25) return;
-    
-    if (Math.abs(tdx) > Math.abs(tdy)) {
-        handleDirection(tdx > 0 ? 'right' : 'left');
-    } else {
-        handleDirection(tdy > 0 ? 'down' : 'up');
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > minSwipe) {
+        handleDirection(dx > 0 ? 'right' : 'left');
+    } else if (Math.abs(dy) > minSwipe) {
+        handleDirection(dy > 0 ? 'down' : 'up');
     }
-}, {passive: false});
+}, { passive: true });
 
-// ==================== UI 控制 ====================
-async function closeModal() {
+// 虚拟方向键
+function setupDirectionButtons() {
+    const btnMap = {
+        'btnUp': 'up', 'btnDown': 'down',
+        'btnLeft': 'left', 'btnRight': 'right'
+    };
+    
+    for (const [id, dir] of Object.entries(btnMap)) {
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                handleDirection(dir);
+            });
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                handleDirection(dir);
+            });
+        }
+    }
+}
+
+// 难度切换
+function setDifficulty(level) {
+    difficulty = level;
+    document.querySelectorAll('.difficulty-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.level === level);
+    });
+    if (!isGameStarted) {
+        baseSpeed = difficulties[level].speed;
+        currentSpeed = baseSpeed;
+    }
+}
+
+// 模态框控制
+function closeModal() {
     document.getElementById('gameOverModal').classList.remove('show');
     document.getElementById('gameOverlay').classList.remove('hidden');
-    await loadLeaderboard();
 }
 
-function toggleSound() {
-    soundEnabled = !soundEnabled;
-    document.getElementById('soundBtn').textContent = soundEnabled ? '🔊' : '🔇';
+function showLeaderboard() {
+    loadLeaderboard();
+    document.getElementById('leaderboardModal').classList.add('show');
 }
 
-function setDifficulty(d) {
-    difficulty = d;
-    baseSpeed = difficulties[d].speed;
-    if (activePowerUps.length === 0) {
-        currentSpeed = baseSpeed;
-    } else {
-        updateGameSpeed();
-    }
-    
-    document.querySelectorAll('.control-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.getElementById('btn' + d.charAt(0).toUpperCase() + d.slice(1)).classList.add('active');
-    
-    if (isGameStarted) {
-        clearInterval(gameLoop);
-        gameLoop = setInterval(updateGame, currentSpeed);
-    }
+function closeLeaderboard() {
+    document.getElementById('leaderboardModal').classList.remove('show');
 }
 
-// ==================== 排行榜展示 ====================
+// 加载排行榜
 async function loadLeaderboard() {
     await fetchLeaderboard();
-    renderLeaderboard();
-}
-
-function renderLeaderboard() {
-    const listEl = document.getElementById('leaderboardList');
-    const countEl = document.getElementById('leaderboardCount');
     
-    countEl.textContent = leaderboardData.length + ' 人玩过';
+    const tbody = document.getElementById('leaderboardBody');
+    if (!tbody) return;
     
-    if (leaderboardData.length === 0) {
-        listEl.innerHTML = `
-            <div class="leaderboard-empty">
-                <div class="icon">🏆</div>
-                <div>还没有人上榜</div>
-                <div style="font-size: 12px; margin-top: 8px;">成为第一个挑战者吧！</div>
-            </div>
-        `;
-        return;
-    }
+    tbody.innerHTML = leaderboardData.slice(0, 10).map((item, i) => `
+        <tr>
+            <td>${i + 1}</td>
+            <td>${escapeHtml(item.name)}</td>
+            <td>${item.score}</td>
+        </tr>
+    `).join('');
     
-    let html = '';
-    const myName = currentPlayerName || getPlayerName();
-    
-    const uniquePlayers = [];
-    const seen = new Set();
-    
-    for (const item of leaderboardData) {
-        if (!seen.has(item.name)) {
-            seen.add(item.name);
-            uniquePlayers.push(item);
+    // 显示我的排名
+    const myName = getPlayerName();
+    if (myName) {
+        const myIndex = leaderboardData.findIndex(item => item.name === myName);
+        if (myIndex !== -1) {
+            document.getElementById('myRank').textContent = '#' + (myIndex + 1);
         }
     }
-    
-    uniquePlayers.slice(0, 10).forEach((item, i) => {
-        const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal';
-        const isMe = item.name === myName;
-        
-        html += `
-            <div class="leaderboard-item ${isMe ? 'highlight' : ''}">
-                <div class="rank-num ${rankClass}">${i + 1}</div>
-                <div class="rank-info">
-                    <div class="rank-name">${escapeHtml(item.name)}</div>
-                    <div class="rank-time">${item.date}</div>
-                </div>
-                <div class="rank-score">${item.score}</div>
-            </div>
-        `;
-    });
-    
-    listEl.innerHTML = html;
-    updateMyRank();
 }
 
-function updateMyRank() {
-    const myName = currentPlayerName || getPlayerName();
-    if (!myName || leaderboardData.length === 0) {
-        document.getElementById('myRank').textContent = '-';
-        return;
-    }
-    
-    const uniquePlayers = [];
-    const seen = new Set();
-    
-    for (const item of leaderboardData) {
-        if (!seen.has(item.name)) {
-            seen.add(item.name);
-            uniquePlayers.push(item);
-        }
-    }
-    
-    const rank = uniquePlayers.findIndex(item => item.name === myName);
-    document.getElementById('myRank').textContent = rank >= 0 ? '#' + (rank + 1) : '-';
-}
-
+// 提交分数
 async function submitScore() {
     const name = document.getElementById('playerName').value.trim();
     if (name.length < 1 || name.length > 10) {
@@ -994,9 +824,7 @@ async function submitScore() {
         }
         
         closeModal();
-        
     } catch (e) {
-        console.error('提交失败:', e);
         alert('提交失败，请重试');
     } finally {
         submitBtn.textContent = originalText;
@@ -1015,6 +843,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('highScore').textContent = getHighScore();
     await loadLeaderboard();
     drawGame();
+    setupDirectionButtons();
     
-    console.log(`🐍 贪吃蛇 ${VERSION} 道具版已加载`);
+    console.log(`🐍 贪吃蛇 ${VERSION} 已加载`);
 });
