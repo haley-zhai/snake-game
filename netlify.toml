@@ -1,24 +1,17 @@
-{
-  "redirects": [
-    {
-      "from": "/api/*",
-      "to": "/.netlify/functions/api",
-      "status": 200
-    }
-  ],
-  "headers": [
-    {
-      "for": "/*",
-      "values": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type"
-      }
-    }
-  ],
-  "functions": {
-    "api": {
-      "node_bundler": "esbuild"
-    }
-  }
-}
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type"
+
+[functions]
+  node_bundler = "esbuild"
