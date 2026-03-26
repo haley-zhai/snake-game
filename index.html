@@ -557,6 +557,7 @@
         <div class="header">
             <h1>🐍 贪吃蛇</h1>
             <div class="subtitle">SNAKE BATTLE</div>
+            <div class="version-badge">v3.1 视觉版</div>
         </div>
 
         <!-- 信息面板 -->
@@ -577,6 +578,7 @@
 
         <!-- 游戏画布 -->
         <div class="game-wrapper">
+            <canvas id="particleCanvas" width="350" height="350"></canvas>
             <canvas id="gameCanvas" width="350" height="350"></canvas>
             <div class="game-overlay" id="gameOverlay">
                 <div class="overlay-title">🐍</div>
@@ -641,7 +643,8 @@
     </div>
 
     <!-- 腾讯云开发 SDK -->
+    <link rel="stylesheet" href="style.css">
     <script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/1.1.1/cloudbase.full.js"></script>
-    <script src="game.js?v=2"></script>
+    <script src="game.js?v=3.1"></script>
 </body>
 </html>

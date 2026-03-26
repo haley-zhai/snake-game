@@ -1,5 +1,6 @@
 // ==================== 配置 ====================
 const API_BASE = 'https://api.qinjiang.top';
+const VERSION = 'v3.1';
 
 // ==================== 状态管理 ====================
 let leaderboardData = [];
@@ -18,6 +19,72 @@ let soundEnabled = true;
 let currentSpeed = 150;
 let directionQueue = [];
 let currentPlayerName = '';
+
+// ==================== 粒子系统 ====================
+let particles = [];
+const particleCanvas = document.getElementById('particleCanvas');
+const pCtx = particleCanvas ? particleCanvas.getContext('2d') : null;
+
+if (particleCanvas) {
+    particleCanvas.width = 350 * (window.devicePixelRatio || 1);
+    particleCanvas.height = 350 * (window.devicePixelRatio || 1);
+    pCtx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    particleCanvas.style.width = '100%';
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 8;
+        this.vy = (Math.random() - 0.5) * 8;
+        this.life = 1;
+        this.decay = 0.02 + Math.random() * 0.02;
+        this.color = color;
+        this.size = 2 + Math.random() * 4;
+    }
+    
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vx *= 0.98;
+        this.vy *= 0.98;
+        this.life -= this.decay;
+        this.size *= 0.98;
+    }
+    
+    draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+function spawnParticles(x, y, color, count = 15) {
+    for (let i = 0; i < count; i++) {
+        particles.push(new Particle(x, y, color));
+    }
+}
+
+function updateParticles() {
+    if (!pCtx) return;
+    
+    pCtx.clearRect(0, 0, 350, 350);
+    
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        particles[i].draw(pCtx);
+        if (particles[i].life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+}
 
 const difficulties = {
     easy: { speed: 150, label: '简单' },
@@ -40,6 +107,9 @@ canvas.height = 350 * dpr;
 ctx.scale(dpr, dpr);
 canvas.style.width = '100%';
 
+// ==================== 食物动画 ====================
+let foodPulse = 0;
+
 // ==================== 云端 API 接口 ====================
 
 // 获取排行榜（强制云端）
@@ -48,7 +118,6 @@ async function fetchLeaderboard() {
         const res = await fetch(`${API_BASE}/api/leaderboard`);
         const data = await res.json();
         
-        // 转换数据格式
         leaderboardData = data.map(item => ({
             name: item.name || '匿名',
             score: parseInt(item.score) || 0,
@@ -89,7 +158,7 @@ async function submitScoreToCloud(name, scoreValue) {
     }
 }
 
-// ==================== 本地存储（仅用于玩家名字）====================
+// ==================== 本地存储 ====================
 const PERSONAL_KEY = 'snakeGame_personal_v3';
 
 function getGameData() {
@@ -140,23 +209,23 @@ function playSound(type) {
         gain.connect(audioCtx.destination);
         
         if (type === 'eat') {
-            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
             osc.start(audioCtx.currentTime);
             osc.stop(audioCtx.currentTime + 0.15);
         } else if (type === 'die') {
             osc.frequency.setValueAtTime(300, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.4);
-            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
             osc.start(audioCtx.currentTime);
-            osc.stop(audioCtx.currentTime + 0.4);
+            osc.stop(audioCtx.currentTime + 0.5);
         } else if (type === 'start') {
             osc.frequency.setValueAtTime(400, audioCtx.currentTime);
             osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
             gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
             osc.start(audioCtx.currentTime);
             osc.stop(audioCtx.currentTime + 0.2);
@@ -169,12 +238,16 @@ function vibrate(ms = 30) {
 }
 
 function drawGame() {
+    // 清空画布
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, 350, 350);
 
-    ctx.strokeStyle = 'rgba(0,255,136,0.05)';
+    // 绘制发光网格
+    ctx.strokeStyle = 'rgba(0,255,136,0.03)';
     ctx.lineWidth = 0.5;
     for (let i = 0; i <= tileCount; i++) {
+        const alpha = 0.02 + Math.sin(Date.now() * 0.001 + i * 0.1) * 0.01;
+        ctx.strokeStyle = `rgba(0,255,136,${alpha})`;
         ctx.beginPath();
         ctx.moveTo(i * gridSize, 0);
         ctx.lineTo(i * gridSize, 350);
@@ -185,38 +258,61 @@ function drawGame() {
         ctx.stroke();
     }
 
+    // 绘制蛇身
     snake.forEach((seg, i) => {
         const x = seg.x * gridSize;
         const y = seg.y * gridSize;
         
         if (i === 0) {
+            // 蛇头 - 发光效果
             ctx.fillStyle = '#00ff88';
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 20;
             ctx.shadowColor = '#00ff88';
         } else {
-            ctx.fillStyle = `rgba(0,255,136,${0.8 - i * 0.02})`;
+            // 蛇身 - 渐变透明度
+            const alpha = Math.max(0.3, 0.9 - i * 0.02);
+            ctx.fillStyle = `rgba(0,255,136,${alpha})`;
             ctx.shadowBlur = 0;
         }
         
-        ctx.fillRect(x + 1, y + 1, gridSize - 2, gridSize - 2);
+        const size = gridSize - 2;
+        ctx.fillRect(x + 1, y + 1, size, size);
         
+        // 蛇头眼睛
         if (i === 0) {
+            ctx.shadowBlur = 0;
             ctx.fillStyle = '#000';
-            ctx.fillRect(x + 5, y + 5, 3, 3);
-            ctx.fillRect(x + 12, y + 5, 3, 3);
+            ctx.fillRect(x + 6, y + 6, 3, 3);
+            ctx.fillRect(x + 13, y + 6, 3, 3);
         }
     });
 
     ctx.shadowBlur = 0;
 
+    // 绘制食物 - 脉冲发光效果
     const fx = food.x * gridSize + gridSize/2;
     const fy = food.y * gridSize + gridSize/2;
+    
+    foodPulse += 0.05;
+    const pulseSize = Math.sin(foodPulse) * 2;
+    
+    // 外发光
     ctx.fillStyle = '#ff6b6b';
-    ctx.shadowBlur = 15;
+    ctx.shadowBlur = 20 + pulseSize * 2;
     ctx.shadowColor = '#ff6b6b';
+    
+    // 食物本体
     ctx.beginPath();
     ctx.arc(fx, fy, gridSize/2 - 3, 0, Math.PI * 2);
     ctx.fill();
+    
+    // 内部高光
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ff9999';
+    ctx.beginPath();
+    ctx.arc(fx - 2, fy - 2, gridSize/5, 0, Math.PI * 2);
+    ctx.fill();
+    
     ctx.shadowBlur = 0;
 }
 
@@ -248,8 +344,19 @@ function updateGame() {
     if (head.x === food.x && head.y === food.y) {
         score += 10;
         document.getElementById('score').textContent = score;
+        
+        // 分数变化动画
+        const scoreEl = document.getElementById('score');
+        scoreEl.parentElement.classList.add('changed');
+        setTimeout(() => scoreEl.parentElement.classList.remove('changed'), 300);
+        
         playSound('eat');
         vibrate(20);
+        
+        // 生成粒子效果
+        const fx = food.x * gridSize + gridSize/2;
+        const fy = food.y * gridSize + gridSize/2;
+        spawnParticles(fx, fy, '#00ff88', 20);
         
         if (score % 50 === 0 && currentSpeed > 50) {
             currentSpeed -= 5;
@@ -263,6 +370,7 @@ function updateGame() {
     }
 
     drawGame();
+    updateParticles();
 }
 
 function placeFood() {
@@ -285,12 +393,31 @@ async function gameOver() {
     playSound('die');
     vibrate([50, 50, 100]);
     
+    // 死亡粒子效果
+    const head = snake[0];
+    const hx = head.x * gridSize + gridSize/2;
+    const hy = head.y * gridSize + gridSize/2;
+    spawnParticles(hx, hy, '#ff6b6b', 30);
+    
+    // 动画循环直到粒子消失
+    const particleLoop = setInterval(() => {
+        drawGame();
+        updateParticles();
+        if (particles.length === 0) {
+            clearInterval(particleLoop);
+        }
+    }, 16);
+    
     const isNewRecord = saveHighScore(score);
     document.getElementById('highScore').textContent = getHighScore();
     
     document.getElementById('finalScore').textContent = score;
+    const finalScoreEl = document.getElementById('finalScore');
     if (isNewRecord) {
-        document.getElementById('finalScore').innerHTML = score + '<div style="font-size:14px;color:#ffd700;margin-top:4px;">🎉 新纪录！</div>';
+        finalScoreEl.innerHTML = score + '<div style="font-size:14px;color:#ffd700;margin-top:8px;"🎉 新纪录！</div>';
+        finalScoreEl.classList.add('new-record');
+    } else {
+        finalScoreEl.classList.remove('new-record');
     }
     
     const savedName = getPlayerName();
@@ -406,7 +533,6 @@ document.addEventListener('touchend', (e) => {
 async function closeModal() {
     document.getElementById('gameOverModal').classList.remove('show');
     document.getElementById('gameOverlay').classList.remove('hidden');
-    // 关闭弹窗时刷新排行榜
     await loadLeaderboard();
 }
 
@@ -440,7 +566,6 @@ function renderLeaderboard() {
     const listEl = document.getElementById('leaderboardList');
     const countEl = document.getElementById('leaderboardCount');
     
-    // 显示人数
     countEl.textContent = leaderboardData.length + ' 人玩过';
     
     if (leaderboardData.length === 0) {
@@ -457,7 +582,6 @@ function renderLeaderboard() {
     let html = '';
     const myName = currentPlayerName || getPlayerName();
     
-    // 去重，每个人只显示最好成绩
     const uniquePlayers = [];
     const seen = new Set();
     
@@ -495,7 +619,6 @@ function updateMyRank() {
         return;
     }
     
-    // 去重计算排名
     const uniquePlayers = [];
     const seen = new Set();
     
@@ -526,10 +649,7 @@ async function submitScore() {
     submitBtn.disabled = true;
     
     try {
-        // 提交到云端
         const rank = await submitScoreToCloud(name, score);
-        
-        // 立即刷新排行榜
         await loadLeaderboard();
         
         if (rank) {
@@ -556,7 +676,8 @@ function escapeHtml(text) {
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('highScore').textContent = getHighScore();
-    // 页面加载时获取云端排行榜
     await loadLeaderboard();
     drawGame();
+    
+    console.log(`🐍 贪吃蛇 ${VERSION} 已加载`);
 });
