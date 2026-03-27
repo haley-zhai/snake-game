@@ -226,6 +226,40 @@
             gap: 6px;
         }
 
+        /* 游戏模式切换 */
+        .game-mode-toggle {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin: 12px 0;
+            padding: 8px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+        }
+
+        .mode-label {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .mode-btn {
+            padding: 6px 14px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.05);
+            color: #ccc;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(90deg, #ff6b6b, #ff8e8e);
+            color: #fff;
+            border-color: transparent;
+        }
+
         .btn-primary {
             padding: 14px 48px;
             border: none;
@@ -700,6 +734,13 @@
             <button class="control-btn" id="btnNormal" onclick="setDifficulty('normal')">普通</button>
             <button class="control-btn" id="btnHard" onclick="setDifficulty('hard')">困难</button>
             <button class="control-btn" onclick="toggleSound()" id="soundBtn">🔊</button>
+        </div>
+
+        <!-- AI对战模式 -->
+        <div class="game-mode-toggle">
+            <span class="mode-label">游戏模式:</span>
+            <button class="mode-btn active" id="modeSolo" onclick="setGameMode('solo')">单人</button>
+            <button class="mode-btn" id="modeVsAI" onclick="setGameMode('vs-ai')">对战AI</button>
         </div>
 
         <!-- 云端开关 -->

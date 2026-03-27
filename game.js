@@ -1,6 +1,6 @@
 // ==================== 配置 ====================
 const API_BASE = 'https://api.qinjiang.top';
-const VERSION = 'v4.2';
+const VERSION = 'v4.5';
 
 // ==================== 道具系统 ====================
 const POWERUPS = {
@@ -34,6 +34,194 @@ let activePowerups = {}; // 激活的道具效果
 let foodSinceLastPowerup = 0; // 吃掉食物计数
 let baseSpeed = 150; // 基础速度
 let scoreMultiplier = 1; // 得分倍率
+
+// ==================== v4.5 AI对战系统 ====================
+let aiSnake = []; // AI蛇
+let aiDx = 0, aiDy = 0;
+let aiScore = 0;
+let aiAlive = false;
+let aiDifficulty = 'normal'; // easy, normal, hard
+let gameMode = 'solo'; // 'solo' 或 'vs-ai'
+
+// AI路径寻找
+class AISnakeController {
+    constructor() {
+        this.path = [];
+        this.lastDecision = 0;
+        this.decisionInterval = 150; // AI决策间隔
+    }
+    
+    // 计算到食物的最佳方向
+    findDirectionToFood(head, foodPos) {
+        const directions = [
+            { dx: 0, dy: -1, name: 'up' },
+            { dx: 0, dy: 1, name: 'down' },
+            { dx: -1, dy: 0, name: 'left' },
+            { dx: 1, dy: 0, name: 'right' }
+        ];
+        
+        // 过滤掉会撞墙或撞自己的方向
+        const safeDirections = directions.filter(dir => {
+            const newX = head.x + dir.dx;
+            const newY = head.y + dir.dy;
+            
+            // 检查撞墙
+            if (newX < 0 || newX >= tileCount || newY < 0 || newY >= tileCount) {
+                return false;
+            }
+            
+            // 检查撞自己
+            if (aiSnake.some(seg => seg.x === newX && seg.y === newY)) {
+                return false;
+            }
+            
+            // 检查撞玩家（AI难度相关）
+            if (aiDifficulty === 'hard' && snake.some(seg => seg.x === newX && seg.y === newY)) {
+                return false;
+            }
+            
+            return true;
+        });
+        
+        if (safeDirections.length === 0) return null;
+        
+        // 根据难度添加随机性
+        if (aiDifficulty === 'easy' && Math.random() < 0.4) {
+            return safeDirections[Math.floor(Math.random() * safeDirections.length)];
+        }
+        
+        // 找到最接近食物的方向
+        let bestDir = safeDirections[0];
+        let minDist = Infinity;
+        
+        safeDirections.forEach(dir => {
+            const newX = head.x + dir.dx;
+            const newY = head.y + dir.dy;
+            const dist = Math.abs(newX - foodPos.x) + Math.abs(newY - foodPos.y);
+            
+            if (dist < minDist) {
+                minDist = dist;
+                bestDir = dir;
+            }
+        });
+        
+        return bestDir;
+    }
+    
+    update() {
+        if (!aiAlive || aiSnake.length === 0) return;
+        
+        const now = Date.now();
+        if (now - this.lastDecision < this.decisionInterval) return;
+        this.lastDecision = now;
+        
+        const head = aiSnake[0];
+        const dir = this.findDirectionToFood(head, food);
+        
+        if (dir) {
+            aiDx = dir.dx;
+            aiDy = dir.dy;
+        }
+    }
+}
+
+let aiController = new AISnakeController();
+
+function initAISnake() {
+    aiSnake = [{x: 5, y: 5}];
+    aiDx = 1;
+    aiDy = 0;
+    aiScore = 0;
+    aiAlive = true;
+    aiController = new AISnakeController();
+}
+
+function updateAISnake() {
+    if (!aiAlive || !isGameStarted || isGameOver) return;
+    
+    aiController.update();
+    
+    const head = {x: aiSnake[0].x + aiDx, y: aiSnake[0].y + aiDy};
+    
+    // 撞墙检测
+    if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+        aiAlive = false;
+        return;
+    }
+    
+    // 撞自己检测
+    for (let seg of aiSnake) {
+        if (head.x === seg.x && head.y === seg.y) {
+            aiAlive = false;
+            return;
+        }
+    }
+    
+    // 撞玩家检测
+    for (let seg of snake) {
+        if (head.x === seg.x && head.y === seg.y) {
+            aiAlive = false;
+            return;
+        }
+    }
+    
+    aiSnake.unshift(head);
+    
+    // 吃食物
+    if (head.x === food.x && head.y === food.y) {
+        aiScore += 10;
+        placeFood();
+        // 玩家也得分（合作模式）
+        if (gameMode === 'coop') {
+            score += 5;
+            document.getElementById('score').textContent = score;
+        }
+    } else {
+        aiSnake.pop();
+    }
+}
+
+function drawAISnake(ctx) {
+    if (!aiAlive || aiSnake.length === 0) return;
+    
+    aiSnake.forEach((seg, i) => {
+        const x = seg.x * gridSize;
+        const y = seg.y * gridSize;
+        const size = gridSize - 2;
+        
+        ctx.save();
+        
+        if (i === 0) {
+            // AI蛇头 - 红色系
+            ctx.fillStyle = '#ff4444';
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#ff4444';
+            ctx.beginPath();
+            ctx.arc(x + gridSize/2, y + gridSize/2, gridSize/1.8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // AI眼睛
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(x + 7, y + 7, 2.5, 0, Math.PI * 2);
+            ctx.arc(x + 13, y + 7, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(x + 7 + aiDx, y + 7 + aiDy, 1, 0, Math.PI * 2);
+            ctx.arc(x + 13 + aiDx, y + 7 + aiDy, 1, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            const alpha = Math.max(0.3, 0.9 - i * 0.015);
+            ctx.fillStyle = `rgba(255,68,68,${alpha})`;
+            ctx.shadowBlur = i < 5 ? 12 - i * 2 : 0;
+            ctx.shadowColor = '#ff4444';
+            ctx.fillRect(x + 1, y + 1, size, size);
+        }
+        
+        ctx.restore();
+    });
+}
 
 // ==================== 粒子系统 ====================
 let particles = [];
@@ -749,6 +937,11 @@ function drawGame() {
         
         ctx.restore();
     });
+    
+    // 绘制AI蛇（v4.5 AI对战）
+    if (gameMode === 'vs-ai' || gameMode === 'coop') {
+        drawAISnake(ctx);
+    }
 }
 
 function updateGame() {
@@ -842,6 +1035,11 @@ function updateGame() {
 
     drawGame();
     updateParticles();
+    
+    // 更新AI蛇（v4.5 AI对战）
+    if ((gameMode === 'vs-ai' || gameMode === 'coop') && aiAlive) {
+        updateAISnake();
+    }
 }
 
 function placeFood() {
@@ -908,6 +1106,11 @@ function startGame() {
     activePowerups = {};
     foodSinceLastPowerup = 0;
     scoreMultiplier = 1;
+    
+    // 初始化AI蛇（v4.5 AI对战）
+    if (gameMode === 'vs-ai' || gameMode === 'coop') {
+        initAISnake();
+    }
     
     snake = [{x: 10, y: 10}];
     dx = 1;
@@ -1115,6 +1318,23 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// ==================== 游戏模式切换 ====================
+function setGameMode(mode) {
+    gameMode = mode;
+    
+    // 更新按钮状态
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    if (mode === 'solo') {
+        document.getElementById('modeSolo').classList.add('active');
+        aiAlive = false;
+    } else if (mode === 'vs-ai') {
+        document.getElementById('modeVsAI').classList.add('active');
+    }
+}
+
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('highScore').textContent = getHighScore();
@@ -1122,5 +1342,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     drawGame();
     setupDirectionButtons();
     
-    console.log(`🐍 贪吃蛇 ${VERSION} 已加载`);
+    console.log(`🐍 贪吃蛇 ${VERSION} 已加载 - AI对战版`);
 });
