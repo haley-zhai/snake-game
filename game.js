@@ -1,6 +1,6 @@
 // ==================== 配置 ====================
 const API_BASE = 'https://api.qinjiang.top';
-const VERSION = 'v4.1';
+const VERSION = 'v4.2';
 
 // ==================== 道具系统 ====================
 const POWERUPS = {
@@ -99,6 +99,125 @@ function updateParticles() {
             particles.splice(i, 1);
         }
     }
+}
+
+// ==================== v4.2 视觉增强系统 ====================
+
+// 蛇身轨迹系统
+let snakeTrails = [];
+const MAX_TRAIL_LENGTH = 8;
+
+class TrailSegment {
+    constructor(x, y, color, alpha) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.alpha = alpha;
+        this.life = 1.0;
+    }
+    
+    update() {
+        this.life -= 0.08;
+        this.alpha *= 0.95;
+    }
+    
+    draw(ctx) {
+        if (this.life <= 0) return;
+        ctx.save();
+        ctx.globalAlpha = this.alpha * this.life;
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 15 * this.life;
+        ctx.shadowColor = this.color;
+        const size = gridSize - 4;
+        ctx.fillRect(this.x * gridSize + 2, this.y * gridSize + 2, size, size);
+        ctx.restore();
+    }
+}
+
+function addSnakeTrail(x, y, color) {
+    snakeTrails.push(new TrailSegment(x, y, color, 0.6));
+    if (snakeTrails.length > MAX_TRAIL_LENGTH * 3) {
+        snakeTrails.shift();
+    }
+}
+
+function updateTrails() {
+    for (let i = snakeTrails.length - 1; i >= 0; i--) {
+        snakeTrails[i].update();
+        if (snakeTrails[i].life <= 0) {
+            snakeTrails.splice(i, 1);
+        }
+    }
+}
+
+function drawTrails(ctx) {
+    snakeTrails.forEach(trail => trail.draw(ctx));
+}
+
+// 彩色爆发粒子
+class BurstParticle extends Particle {
+    constructor(x, y, colors) {
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        super(x, y, color);
+        this.vx = (Math.random() - 0.5) * 15;
+        this.vy = (Math.random() - 0.5) * 15;
+        this.decay = 0.015 + Math.random() * 0.02;
+        this.size = 3 + Math.random() * 5;
+        this.gravity = 0.2;
+    }
+    
+    update() {
+        super.update();
+        this.vy += this.gravity;
+        this.size *= 0.97;
+    }
+    
+    draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 20 * this.life;
+        ctx.shadowColor = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+function spawnBurstParticles(x, y, colors, count = 30) {
+    for (let i = 0; i < count; i++) {
+        particles.push(new BurstParticle(x, y, colors));
+    }
+}
+
+// 粒子风暴（死亡特效）
+function spawnParticleStorm(x, y) {
+    const stormColors = ['#ff6b6b', '#ffd93d', '#6bcf7f', '#4d96ff', '#9b59b6', '#ff9ff3'];
+    for (let i = 0; i < 80; i++) {
+        const angle = (Math.PI * 2 / 80) * i;
+        const speed = 3 + Math.random() * 8;
+        const p = new BurstParticle(x, y, stormColors);
+        p.vx = Math.cos(angle) * speed;
+        p.vy = Math.sin(angle) * speed;
+        p.size = 2 + Math.random() * 4;
+        particles.push(p);
+    }
+}
+
+// 3D阴影效果绘制
+function draw3DShadow(ctx, x, y, size, depth) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(x + depth, y + depth, size, size);
+    ctx.restore();
+}
+
+// 动态背景渐变
+let bgOffset = 0;
+function updateBackground() {
+    bgOffset += 0.5;
+    if (bgOffset > 360) bgOffset = 0;
 }
 
 const difficulties = {
@@ -368,14 +487,22 @@ function updatePowerupUI() {
 // ==================== 游戏核心 ====================
 
 function drawGame() {
-    // 清空画布
-    ctx.fillStyle = '#0a0a0f';
+    // 动态背景 - 流动渐变效果
+    const time = Date.now() * 0.0005;
+    const hue1 = (120 + Math.sin(time) * 20) % 360;
+    const hue2 = (160 + Math.cos(time * 0.7) * 30) % 360;
+    const gradient = ctx.createLinearGradient(0, 0, 350, 350);
+    gradient.addColorStop(0, `hsla(${hue1}, 60%, 8%, 1)`);
+    gradient.addColorStop(0.5, `hsla(${hue2}, 50%, 10%, 1)`);
+    gradient.addColorStop(1, `hsla(${hue1}, 60%, 6%, 1)`);
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 350, 350);
 
-    // 绘制发光网格
+    // 绘制脉冲网格
     for (let i = 0; i <= tileCount; i++) {
-        const alpha = 0.02 + Math.sin(Date.now() * 0.001 + i * 0.1) * 0.01;
-        ctx.strokeStyle = `rgba(0,255,136,${alpha})`;
+        const pulseAlpha = 0.03 + Math.sin(Date.now() * 0.002 + i * 0.15) * 0.02;
+        const hue = 140 + Math.sin(time + i * 0.1) * 20;
+        ctx.strokeStyle = `hsla(${hue}, 80%, 60%, ${pulseAlpha})`;
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         ctx.moveTo(i * gridSize, 0);
@@ -387,14 +514,164 @@ function drawGame() {
         ctx.stroke();
     }
 
-    // 绘制蛇身
+    // 更新并绘制轨迹
+    updateTrails();
+    drawTrails(ctx);
+
+    // 绘制蛇身（带3D效果）
     const isGhost = activePowerups.ghost && Date.now() < activePowerups.ghost.expiresAt;
     
     snake.forEach((seg, i) => {
         const x = seg.x * gridSize;
         const y = seg.y * gridSize;
+        const size = gridSize - 2;
+        
+        // 3D阴影效果
+        if (i < 3) {
+            draw3DShadow(ctx, x + 1, y + 1, size, 3 - i);
+        }
         
         ctx.save();
+        
+        if (i === 0) {
+            // 蛇头 - 发光效果增强
+            const headColor = isGhost ? '#9944ff' : '#00ff88';
+            ctx.fillStyle = headColor;
+            ctx.shadowBlur = isGhost ? 40 : 30;
+            ctx.shadowColor = headColor;
+            ctx.globalAlpha = isGhost ? 0.8 : 1;
+            
+            // 蛇头光晕
+            ctx.beginPath();
+            ctx.arc(x + gridSize/2, y + gridSize/2, gridSize/1.8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 添加轨迹
+            addSnakeTrail(seg.x, seg.y, headColor);
+        } else {
+            // 蛇身 - 渐变发光
+            const alpha = Math.max(0.3, 0.95 - i * 0.015);
+            const bodyColor = isGhost ? `rgba(153,68,255,${alpha})` : `rgba(0,255,136,${alpha})`;
+            ctx.fillStyle = bodyColor;
+            ctx.shadowBlur = i < 5 ? 15 - i * 2 : 0;
+            ctx.shadowColor = isGhost ? '#9944ff' : '#00ff88';
+            ctx.fillRect(x + 1, y + 1, size, size);
+            
+            // 每隔一段添加轨迹
+            if (i % 2 === 0 && i < 10) {
+                addSnakeTrail(seg.x, seg.y, isGhost ? '#9944ff' : '#00ff88');
+            }
+        }
+        
+        // 蛇头眼睛（增强版）
+        if (i === 0) {
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#000';
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(x + 7, y + 7, 3, 0, Math.PI * 2);
+            ctx.arc(x + 14, y + 7, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(x + 7 + dx, y + 7 + dy, 1.5, 0, Math.PI * 2);
+            ctx.arc(x + 14 + dx, y + 7 + dy, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        ctx.restore();
+    });
+
+    ctx.shadowBlur = 0;
+
+    // 绘制食物（增强动画）
+    foodPulse += 0.08;
+    const pulseSize = Math.sin(foodPulse) * 3;
+    const rotateAngle = foodPulse * 0.3;
+    const fx = food.x * gridSize + gridSize/2;
+    const fy = food.y * gridSize + gridSize/2;
+    
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.rotate(rotateAngle);
+    
+    // 外发光环
+    ctx.strokeStyle = `rgba(255, 107, 107, ${0.5 + Math.sin(foodPulse) * 0.3})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, gridSize/2 + pulseSize, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    ctx.restore();
+    
+    // 食物本体
+    ctx.fillStyle = '#ff6b6b';
+    ctx.shadowBlur = 25 + pulseSize * 2;
+    ctx.shadowColor = '#ff6b6b';
+    ctx.beginPath();
+    ctx.arc(fx, fy, gridSize/2 - 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 内部高光
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffcccc';
+    ctx.beginPath();
+    ctx.arc(fx - 3, fy - 3, gridSize/4, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 星星效果
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 4; i++) {
+        const angle = (Math.PI * 2 / 4) * i + rotateAngle;
+        const sx = fx + Math.cos(angle) * (gridSize/2 + 2);
+        const sy = fy + Math.sin(angle) * (gridSize/2 + 2);
+        ctx.beginPath();
+        ctx.arc(sx, sy, 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // 绘制道具（增强版）
+    cleanupPowerups();
+    powerups.forEach(pu => {
+        const px = pu.x * gridSize + gridSize/2;
+        const py = pu.y * gridSize + gridSize/2;
+        const config = POWERUPS[pu.type];
+        const age = Date.now() - pu.createdAt;
+        const remaining = 8000 - age;
+        const blink = remaining < 2000 ? Math.sin(Date.now() * 0.015) * 0.4 + 0.6 : 1;
+        const floatY = Math.sin(Date.now() * 0.005 + pu.x) * 2;
+        
+        ctx.save();
+        ctx.globalAlpha = blink;
+        
+        // 外圈光环
+        ctx.strokeStyle = config.color;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.arc(px, py + floatY, gridSize/1.5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // 光晕效果
+        ctx.fillStyle = config.color;
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = config.color;
+        ctx.beginPath();
+        ctx.arc(px, py + floatY, gridSize/2 - 1, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // emoji（带浮动效果）
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 18px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(config.emoji, px, py + floatY + 1);
+        
+        ctx.restore();
+    });
+}
         
         if (i === 0) {
             // 蛇头
