@@ -1,6 +1,6 @@
 // ==================== 配置 ====================
 const API_BASE = 'https://api.qinjiang.top';
-const VERSION = 'v4.5';
+const VERSION = 'v5.0';
 
 // ==================== 道具系统 ====================
 const POWERUPS = {
@@ -1335,6 +1335,19 @@ function setGameMode(mode) {
     }
 }
 
+// ==================== PWA Service Worker 注册 ====================
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+            .then(registration => {
+                console.log('[PWA] SW registered:', registration.scope);
+            })
+            .catch(error => {
+                console.log('[PWA] SW registration failed:', error);
+            });
+    });
+}
+
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('highScore').textContent = getHighScore();
@@ -1342,5 +1355,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     drawGame();
     setupDirectionButtons();
     
-    console.log(`🐍 贪吃蛇 ${VERSION} 已加载 - AI对战版`);
+    console.log(`🐍 贪吃蛇 ${VERSION} 已加载 - PWA终极版`);
+    console.log('💡 提示: 可添加到主屏幕，离线也能玩！');
 });
