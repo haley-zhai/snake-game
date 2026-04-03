@@ -418,7 +418,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const dpr = window.devicePixelRatio || 1;
 const gridSize = 20;
-const tileCount = 350 / gridSize;
+const tileCount = Math.floor(350 / gridSize);
 
 // ==================== 音频系统 ====================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
