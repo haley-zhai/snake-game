@@ -1034,7 +1034,7 @@ function startGame() {
         initAISnake();
     }
     
-    snake = [{x: 10, y: 10}];
+    snake = [{x: 5, y: 5}];
     dx = 1;
     dy = 0;
     directionQueue = [];
