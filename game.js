@@ -1152,9 +1152,12 @@ function setupDirectionButtons() {
 // 难度切换
 function setDifficulty(level) {
     difficulty = level;
-    document.querySelectorAll('.difficulty-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.level === level);
+    document.querySelectorAll('.control-btn').forEach(btn => {
+        btn.classList.remove('active');
     });
+    document.getElementById('btnEasy').classList.toggle('active', level === 'easy');
+    document.getElementById('btnNormal').classList.toggle('active', level === 'normal');
+    document.getElementById('btnHard').classList.toggle('active', level === 'hard');
     if (!isGameStarted) {
         baseSpeed = difficulties[level].speed;
         currentSpeed = baseSpeed;
@@ -1238,6 +1241,26 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// ==================== 音效开关 ====================
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    const btn = document.getElementById('soundBtn');
+    if (btn) {
+        btn.textContent = soundEnabled ? '🔊' : '🔇';
+    }
+}
+
+// ==================== 云端模式切换 ====================
+let useCloud = false;
+function toggleCloud() {
+    useCloud = !useCloud;
+    const btn = document.getElementById('cloudToggleBtn');
+    if (btn) {
+        btn.textContent = useCloud ? '☁️ 云端' : '📱 本地';
+        btn.classList.toggle('active', useCloud);
+    }
 }
 
 // ==================== 游戏模式切换 ====================
