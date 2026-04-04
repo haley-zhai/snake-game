@@ -28,7 +28,25 @@ let currentSpeed = 150;
 let directionQueue = [];
 let currentPlayerName = '';
 
-// ==================== 道具状态 ====================
+// ==================== 皮肤系统 ====================
+let currentSkin = 'classic';
+
+const SKINS = {
+    classic: { snake: '#00ff88', snakeHead: '#00ff88', food: '#ff6b6b', bg: '#0a0a0a', name: 'classic' },
+    neon: { snake: '#ff00ff', snakeHead: '#ff00ff', food: '#00ffff', bg: '#1a0033', name: 'neon' },
+    fire: { snake: '#ff6600', snakeHead: '#ff6600', food: '#ffff00', bg: '#330000', name: 'fire' },
+    ocean: { snake: '#0099ff', snakeHead: '#0099ff', food: '#00ffcc', bg: '#001a33', name: 'ocean' }
+};
+
+// hex to rgba
+function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// ==================== Powerups ====================
 let powerups = []; // 地图上的道具
 let activePowerups = {}; // 激活的道具效果
 let foodSinceLastPowerup = 0; // 吃掉食物计数
@@ -708,6 +726,7 @@ function drawGame() {
 
     // 绘制蛇身（带3D效果）
     const isGhost = activePowerups.ghost && Date.now() < activePowerups.ghost.expiresAt;
+    const skin = SKINS[currentSkin];
     
     snake.forEach((seg, i) => {
         const x = seg.x * gridSize;
@@ -723,7 +742,7 @@ function drawGame() {
         
         if (i === 0) {
             // 蛇头 - 发光效果增强
-            const headColor = isGhost ? '#9944ff' : '#00ff88';
+            const headColor = isGhost ? '#9944ff' : skin.snakeHead;
             ctx.fillStyle = headColor;
             ctx.shadowBlur = isGhost ? 40 : 30;
             ctx.shadowColor = headColor;
@@ -739,10 +758,10 @@ function drawGame() {
         } else {
             // 蛇身 - 渐变发光
             const alpha = Math.max(0.3, 0.95 - i * 0.015);
-            const bodyColor = isGhost ? `rgba(153,68,255,${alpha})` : `rgba(0,255,136,${alpha})`;
+            const bodyColor = isGhost ? `rgba(153,68,255,${alpha})` : hexToRgba(skin.snake, alpha);
             ctx.fillStyle = bodyColor;
             ctx.shadowBlur = i < 5 ? 15 - i * 2 : 0;
-            ctx.shadowColor = isGhost ? '#9944ff' : '#00ff88';
+            ctx.shadowColor = isGhost ? '#9944ff' : skin.snake;
             ctx.fillRect(x + 1, y + 1, size, size);
             
             // 每隔一段添加轨迹
@@ -1322,6 +1341,29 @@ function setGameMode(mode) {
         aiAlive = false;
     } else if (mode === 'vs-ai') {
         document.getElementById('modeVsAI').classList.add('active');
+    }
+}
+
+// ==================== 皮肤切换 ====================
+function setSkin(skinName) {
+    currentSkin = skinName;
+    
+    // 更新按钮状态
+    const skinButtons = ['skinClassic', 'skinNeon', 'skinFire', 'skinOcean'];
+    skinButtons.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.classList.remove('active');
+    });
+    
+    const activeBtn = document.getElementById('skin' + skinName.charAt(0).toUpperCase() + skinName.slice(1));
+    if (activeBtn) activeBtn.classList.add('active');
+    
+    // 保存到本地存储
+    localStorage.setItem('snakeSkin', skinName);
+    
+    // 重新绘制游戏
+    if (!isGameStarted || isGameOver) {
+        drawGame();
     }
 }
 
