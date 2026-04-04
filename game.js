@@ -500,8 +500,20 @@ async function fetchLeaderboard() {
     try {
         console.log('[Leaderboard] Fetching from:', `${API_BASE}/api/leaderboard`);
         const res = await fetch(`${API_BASE}/api/leaderboard`);
+        
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
         const data = await res.json();
+        console.log('[Leaderboard] Raw data:', data);
         console.log('[Leaderboard] Data received:', data.length, 'items');
+        
+        if (!Array.isArray(data)) {
+            console.error('[Leaderboard] Data is not an array:', data);
+            leaderboardData = [];
+            return [];
+        }
         
         leaderboardData = data.map(item => ({
             name: item.name || 'Anonymous',
@@ -510,9 +522,10 @@ async function fetchLeaderboard() {
             timestamp: item.timestamp
         }));
         
+        console.log('[Leaderboard] Processed data:', leaderboardData);
         return leaderboardData;
     } catch (e) {
-        console.error('[Leaderboard] Error:', e);
+        console.error('[Leaderboard] Error:', e.message);
         leaderboardData = [];
         return [];
     }
@@ -520,6 +533,7 @@ async function fetchLeaderboard() {
 
 async function submitScoreToCloud(name, scoreValue) {
     try {
+        console.log('[Submit] POST to:', `${API_BASE}/api/leaderboard`);
         const res = await fetch(`${API_BASE}/api/leaderboard`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -530,9 +544,15 @@ async function submitScoreToCloud(name, scoreValue) {
             })
         });
         
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
         const result = await res.json();
+        console.log('[Submit] Response:', result);
         return result.rank || null;
     } catch (e) {
+        console.error('[Submit] Error:', e.message);
         return null;
     }
 }
@@ -1223,25 +1243,27 @@ function closeLeaderboard() {
 
 // 加载排行榜
 async function loadLeaderboard() {
-    console.log('[Leaderboard] Loading...');
+    console.log('[Leaderboard] ===== Loading started =====');
     await fetchLeaderboard();
     
     const listContainer = document.getElementById('leaderboardList');
     const countEl = document.getElementById('leaderboardCount');
     
-    console.log('[Leaderboard] Data:', leaderboardData.length, 'items');
-    console.log('[Leaderboard] Container:', listContainer ? 'found' : 'not found');
+    console.log('[Leaderboard] Data count:', leaderboardData.length);
+    console.log('[Leaderboard] Container found:', !!listContainer);
+    console.log('[Leaderboard] CountEl found:', !!countEl);
     
     if (countEl) {
         countEl.textContent = `${leaderboardData.length} 人玩过`;
     }
     
     if (!listContainer) {
-        console.error('[Leaderboard] listContainer not found!');
+        console.error('[Leaderboard] ERROR: listContainer not found!');
         return;
     }
     
     if (leaderboardData.length === 0) {
+        console.log('[Leaderboard] No data, showing empty state');
         listContainer.innerHTML = `
             <div class="leaderboard-empty">
                 <div class="icon">🏆</div>
@@ -1253,9 +1275,10 @@ async function loadLeaderboard() {
     }
     
     const myName = getPlayerName();
+    console.log('[Leaderboard] My name:', myName);
     
     try {
-        listContainer.innerHTML = leaderboardData.slice(0, 50).map((item, i) => {
+        const html = leaderboardData.slice(0, 50).map((item, i) => {
             const isMe = item.name === myName;
             const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal';
             return `
@@ -1269,7 +1292,9 @@ async function loadLeaderboard() {
                 </div>
             `;
         }).join('');
-        console.log('[Leaderboard] Rendered successfully');
+        
+        listContainer.innerHTML = html;
+        console.log('[Leaderboard] ===== Rendered successfully =====');
     } catch (e) {
         console.error('[Leaderboard] Render error:', e);
     }
@@ -1278,7 +1303,8 @@ async function loadLeaderboard() {
     if (myName) {
         const myIndex = leaderboardData.findIndex(item => item.name === myName);
         if (myIndex !== -1) {
-            document.getElementById('myRank').textContent = '#' + (myIndex + 1);
+            const myRankEl = document.getElementById('myRank');
+            if (myRankEl) myRankEl.textContent = '#' + (myIndex + 1);
         }
     }
 }
