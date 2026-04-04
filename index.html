@@ -237,18 +237,30 @@
         async function initCloud() {
             if (isCloudReady) return true;
             try {
-                if (typeof cloudbase === 'undefined') return false;
+                if (typeof cloudbase === 'undefined') {
+                    console.error('腾讯云SDK未加载');
+                    return false;
+                }
                 cloudApp = cloudbase.init({ env: CLOUDBASE_ENV });
                 await cloudApp.auth().anonymousAuthProvider().signIn();
                 cloudDb = cloudApp.database();
                 isCloudReady = true;
+                console.log('腾讯云连接成功');
                 return true;
-            } catch (e) { return false; }
+            } catch (e) {
+                console.error('腾讯云初始化失败:', e.message);
+                return false;
+            }
         }
 
         async function loadLeaderboard() {
-            await initCloud();
-            if (!cloudDb) return;
+            const ready = await initCloud();
+            if (!ready || !cloudDb) {
+                // 云端不可用，显示空状态
+                leaderboardData = [];
+                renderLeaderboard();
+                return;
+            }
             try {
                 const { data } = await cloudDb.collection('leaderboard')
                     .orderBy('score', 'desc').limit(10).get();
@@ -257,7 +269,11 @@
                     score: parseInt(item.score) || 0
                 }));
                 renderLeaderboard();
-            } catch (e) { console.error('加载排行榜失败', e); }
+            } catch (e) {
+                console.error('加载排行榜失败', e);
+                leaderboardData = [];
+                renderLeaderboard();
+            }
         }
 
         async function submitToCloud(name, score) {
