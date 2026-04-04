@@ -1223,16 +1223,23 @@ function closeLeaderboard() {
 
 // 加载排行榜
 async function loadLeaderboard() {
+    console.log('[Leaderboard] Loading...');
     await fetchLeaderboard();
     
     const listContainer = document.getElementById('leaderboardList');
     const countEl = document.getElementById('leaderboardCount');
     
+    console.log('[Leaderboard] Data:', leaderboardData.length, 'items');
+    console.log('[Leaderboard] Container:', listContainer ? 'found' : 'not found');
+    
     if (countEl) {
         countEl.textContent = `${leaderboardData.length} 人玩过`;
     }
     
-    if (!listContainer) return;
+    if (!listContainer) {
+        console.error('[Leaderboard] listContainer not found!');
+        return;
+    }
     
     if (leaderboardData.length === 0) {
         listContainer.innerHTML = `
@@ -1247,20 +1254,25 @@ async function loadLeaderboard() {
     
     const myName = getPlayerName();
     
-    listContainer.innerHTML = leaderboardData.slice(0, 50).map((item, i) => {
-        const isMe = item.name === myName;
-        const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal';
-        return `
-            <div class="leaderboard-item ${isMe ? 'highlight' : ''}">
-                <div class="rank-num ${rankClass}">${i + 1}</div>
-                <div class="rank-info">
-                    <div class="rank-name">${escapeHtml(item.name)}</div>
-                    <div class="rank-time">${item.date}</div>
+    try {
+        listContainer.innerHTML = leaderboardData.slice(0, 50).map((item, i) => {
+            const isMe = item.name === myName;
+            const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal';
+            return `
+                <div class="leaderboard-item ${isMe ? 'highlight' : ''}">
+                    <div class="rank-num ${rankClass}">${i + 1}</div>
+                    <div class="rank-info">
+                        <div class="rank-name">${escapeHtml(item.name)}</div>
+                        <div class="rank-time">${item.date}</div>
+                    </div>
+                    <div class="rank-score">${item.score}</div>
                 </div>
-                <div class="rank-score">${item.score}</div>
-            </div>
-        `;
-    }).join('');
+            `;
+        }).join('');
+        console.log('[Leaderboard] Rendered successfully');
+    } catch (e) {
+        console.error('[Leaderboard] Render error:', e);
+    }
     
     // 显示我的排名
     if (myName) {
@@ -1273,7 +1285,9 @@ async function loadLeaderboard() {
 
 // 提交分数
 async function submitScore() {
-    const name = document.getElementById('playerName').value.trim();
+    const nameInput = document.getElementById('playerName');
+    const name = nameInput ? nameInput.value.trim() : '';
+    
     if (name.length < 1 || name.length > 10) {
         alert('请输入1-10个字符的名字');
         return;
@@ -1283,20 +1297,30 @@ async function submitScore() {
     savePlayerName(name);
     
     const submitBtn = document.querySelector('#gameOverModal .btn-full');
+    if (!submitBtn) {
+        console.error('[Submit] Submit button not found');
+        return;
+    }
+    
     const originalText = submitBtn.textContent;
     submitBtn.textContent = '提交中...';
     submitBtn.disabled = true;
     
     try {
+        console.log('[Submit] Submitting score:', name, score);
         const rank = await submitScoreToCloud(name, score);
+        console.log('[Submit] Rank:', rank);
+        
         await loadLeaderboard();
         
         if (rank) {
-            document.getElementById('myRank').textContent = '#' + rank;
+            const myRankEl = document.getElementById('myRank');
+            if (myRankEl) myRankEl.textContent = '#' + rank;
         }
         
         closeModal();
     } catch (e) {
+        console.error('[Submit] Error:', e);
         alert('提交失败，请重试');
     } finally {
         submitBtn.textContent = originalText;
