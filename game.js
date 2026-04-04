@@ -477,41 +477,69 @@ canvas.style.width = '100%';
 // ==================== 食物动画 ====================
 let foodPulse = 0;
 
-// ==================== 云端 API 接口 ====================
-async function fetchLeaderboard() {
+// ==================== 腾讯云开发排行榜 API ====================
+const CLOUDBASE_ENV = 'snake-game-5gvtkwf262c3ddc4';
+let cloudApp = null;
+let cloudDb = null;
+let isCloudReady = false;
+
+async function initCloudBase() {
+    if (isCloudReady) return true;
     try {
-        const res = await fetch(`${API_BASE}/api/leaderboard`);
-        const data = await res.json();
-        
+        if (typeof cloudbase === 'undefined') return false;
+        cloudApp = cloudbase.init({ env: CLOUDBASE_ENV });
+        await cloudApp.auth().anonymousAuthProvider().signIn();
+        cloudDb = cloudApp.database();
+        isCloudReady = true;
+        return true;
+    } catch (e) {
+        console.error('腾讯云初始化失败:', e);
+        return false;
+    }
+}
+
+async function fetchLeaderboard() {
+    const cloudReady = await initCloudBase();
+    if (!cloudReady || !cloudDb) {
+        leaderboardData = [];
+        return [];
+    }
+    try {
+        const { data } = await cloudDb.collection('leaderboard')
+            .orderBy('score', 'desc')
+            .limit(50)
+            .get();
         leaderboardData = data.map(item => ({
             name: item.name || '匿名',
             score: parseInt(item.score) || 0,
-            date: new Date(item.timestamp).toLocaleString('zh-CN'),
-            timestamp: item.timestamp
+            date: item.date || new Date(item.timestamp).toLocaleString('zh-CN'),
+            timestamp: item.timestamp || Date.now()
         }));
-        
         return leaderboardData;
     } catch (e) {
+        console.error('获取排行榜失败:', e);
         leaderboardData = [];
         return [];
     }
 }
 
 async function submitScoreToCloud(name, scoreValue) {
+    const cloudReady = await initCloudBase();
+    if (!cloudReady || !cloudDb) return null;
     try {
-        const res = await fetch(`${API_BASE}/api/leaderboard`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                name: name,
-                score: scoreValue,
-                time: Math.floor(scoreValue / 10 * currentSpeed / 1000) + 's'
-            })
+        const date = new Date().toLocaleString('zh-CN');
+        await cloudDb.collection('leaderboard').add({
+            name: name,
+            score: scoreValue,
+            date: date,
+            timestamp: Date.now()
         });
-        
-        const result = await res.json();
-        return result.rank || null;
+        // 重新获取排行榜计算排名
+        await fetchLeaderboard();
+        const rank = leaderboardData.findIndex(item => item.name === name) + 1;
+        return rank > 0 ? rank : null;
     } catch (e) {
+        console.error('提交分数失败:', e);
         return null;
     }
 }
