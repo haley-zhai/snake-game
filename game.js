@@ -1108,17 +1108,31 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// 触摸控制 - 阻止页面滚动
+// 触摸控制 - 只在游戏进行中阻止页面滚动
 let touchStartX = 0, touchStartY = 0;
 
 document.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
-}, { passive: false });
+    // 游戏进行时阻止滚动
+    if (isGameStarted && !isGameOver && !isPaused) {
+        // 只允许在游戏区域内阻止默认行为
+        const canvas = document.getElementById('gameCanvas');
+        if (canvas && canvas.contains(e.target)) {
+            // 在游戏区域内，稍后处理
+        }
+    }
+}, { passive: true });
 
 document.addEventListener('touchmove', (e) => {
-    // 阻止页面滚动
-    e.preventDefault();
+    // 只在游戏进行中且在游戏区域内阻止页面滚动
+    if (isGameStarted && !isGameOver && !isPaused) {
+        const canvas = document.getElementById('gameCanvas');
+        const gameWrapper = document.querySelector('.game-wrapper');
+        if (gameWrapper && gameWrapper.contains(e.target)) {
+            e.preventDefault();
+        }
+    }
 }, { passive: false });
 
 document.addEventListener('touchend', (e) => {
@@ -1131,7 +1145,7 @@ document.addEventListener('touchend', (e) => {
     } else if (Math.abs(dy) > minSwipe) {
         handleDirection(dy > 0 ? 'down' : 'up');
     }
-}, { passive: false });
+}, { passive: true });
 
 // 虚拟方向键
 function setupDirectionButtons() {
