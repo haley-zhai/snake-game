@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>贪吃蛇大作战</title>
+    <meta name="theme-color" content="#00ff88">
+    <link rel="manifest" href="manifest.json">
+    <title>贪吃蛇大作战 v5.0</title>
     <style>
         * {
             margin: 0;
@@ -22,6 +24,7 @@
             overflow-x: hidden;
         }
 
+        /* 主容器 */
         .container {
             max-width: 480px;
             margin: 0 auto;
@@ -31,6 +34,7 @@
             flex-direction: column;
         }
 
+        /* 标题区域 */
         .header {
             text-align: center;
             padding: 12px 0;
@@ -51,11 +55,23 @@
             margin-top: 4px;
         }
 
+        .version-badge {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 4px 12px;
+            background: linear-gradient(135deg, rgba(255,100,100,0.3), rgba(100,100,255,0.3));
+            border-radius: 12px;
+            font-size: 12px;
+            color: #ffcc88;
+            border: 1px solid rgba(255,200,100,0.3);
+        }
+
+        /* 游戏信息面板 */
         .info-panel {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 12px;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
         }
 
         .info-card {
@@ -92,14 +108,66 @@
             color: #ff6b6b;
         }
 
+        /* 道具状态区域 */
+        .powerup-status {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+            min-height: 40px;
+            padding: 8px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .powerup-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 20px;
+            border: 2px solid;
+            font-size: 12px;
+            position: relative;
+            overflow: hidden;
+            animation: powerupPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes powerupPulse {
+            0%, 100% { box-shadow: 0 0 5px currentColor; }
+            50% { box-shadow: 0 0 15px currentColor; }
+        }
+
+        .powerup-emoji {
+            font-size: 16px;
+        }
+
+        .powerup-timer {
+            font-weight: bold;
+            color: #fff;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .powerup-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: currentColor;
+            transition: width 0.1s linear;
+        }
+
+        /* 游戏画布区域 */
         .game-wrapper {
             position: relative;
-            background: rgba(0,0,0,0.3);
+            background: #000;
             border-radius: 16px;
-            padding: 12px;
+            padding: 8px;
+            box-shadow: 0 0 40px rgba(0,255,136,0.15), inset 0 0 20px rgba(0,0,0,0.5);
             margin-bottom: 16px;
-            border: 2px solid rgba(0,255,136,0.2);
-            box-shadow: 0 0 30px rgba(0,255,136,0.1);
         }
 
         #gameCanvas {
@@ -109,52 +177,101 @@
             background: #0a0a0f;
         }
 
+        /* 游戏遮罩层 */
         .game-overlay {
             position: absolute;
-            top: 12px;
-            left: 12px;
-            right: 12px;
-            bottom: 12px;
-            background: rgba(0,0,0,0.85);
-            border-radius: 8px;
+            top: 8px;
+            left: 8px;
+            right: 8px;
+            bottom: 8px;
             display: flex;
             flex-direction: column;
-            align-items: center;
             justify-content: center;
-            gap: 16px;
-            z-index: 10;
-            backdrop-filter: blur(5px);
+            align-items: center;
+            background: rgba(0,0,0,0.85);
+            border-radius: 8px;
+            transition: opacity 0.3s;
         }
 
         .game-overlay.hidden {
-            display: none;
+            opacity: 0;
+            pointer-events: none;
         }
 
         .overlay-title {
-            font-size: 64px;
-            animation: pulse 2s infinite;
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            background: linear-gradient(90deg, #00ff88, #00ccff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .overlay-subtitle {
             font-size: 14px;
             color: #888;
+            margin-bottom: 24px;
         }
 
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+        .powerup-legend {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        .powerup-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 游戏模式切换 */
+        .game-mode-toggle {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin: 12px 0;
+            padding: 8px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+        }
+
+        .mode-label {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .mode-btn {
+            padding: 6px 14px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.05);
+            color: #ccc;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(90deg, #ff6b6b, #ff8e8e);
+            color: #fff;
+            border-color: transparent;
         }
 
         .btn-primary {
-            padding: 14px 36px;
-            font-size: 16px;
-            font-weight: bold;
+            padding: 14px 48px;
             border: none;
             border-radius: 25px;
             background: linear-gradient(135deg, #00ff88, #00ccff);
             color: #000;
+            font-size: 16px;
+            font-weight: bold;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.2s;
             box-shadow: 0 4px 15px rgba(0,255,136,0.4);
         }
 
@@ -167,43 +284,24 @@
             transform: translateY(0);
         }
 
-        /* 控制按钮 */
-        .controls-row {
-            display: flex;
-            flex-direction: column;
+        /* 控制按钮区 */
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
             gap: 10px;
             margin-bottom: 16px;
         }
 
-        .controls-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .control-label {
-            font-size: 12px;
-            color: #888;
-            min-width: 36px;
-        }
-
-        .controls {
-            display: flex;
-            gap: 8px;
-            flex: 1;
-        }
-
         .control-btn {
-            padding: 8px 12px;
+            padding: 12px 8px;
             border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 8px;
+            border-radius: 10px;
             background: rgba(255,255,255,0.05);
             color: #fff;
-            font-size: 12px;
+            font-size: 13px;
             cursor: pointer;
             transition: all 0.2s;
             text-align: center;
-            flex: 1;
         }
 
         .control-btn:hover {
@@ -216,13 +314,40 @@
             border-color: #00ff88;
         }
 
-        .sound-btn {
-            min-width: 44px;
-            flex: 0;
-            font-size: 16px;
+        /* 方向键 */
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            max-width: 200px;
+            margin: 0 auto 16px;
         }
 
-        /* 排行榜 */
+        .dpad-btn {
+            aspect-ratio: 1;
+            border: none;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dpad-btn:active {
+            background: rgba(0,255,136,0.3);
+            transform: scale(0.95);
+        }
+
+        .dpad-btn.up { grid-column: 2; }
+        .dpad-btn.left { grid-column: 1; grid-row: 2; }
+        .dpad-btn.right { grid-column: 3; grid-row: 2; }
+        .dpad-btn.down { grid-column: 2; grid-row: 3; }
+
+        /* 排行榜区域 */
         .leaderboard-section {
             background: rgba(255,255,255,0.03);
             border-radius: 16px;
@@ -323,15 +448,12 @@
 
         .rank-info {
             flex: 1;
-            min-width: 0;
         }
 
         .rank-name {
+            font-size: 15px;
             font-weight: 500;
             margin-bottom: 2px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
         }
 
         .rank-time {
@@ -340,7 +462,7 @@
         }
 
         .rank-score {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: bold;
             color: #00ff88;
         }
@@ -352,125 +474,234 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0,0,0,0.8);
-            display: flex;
-            align-items: center;
+            background: rgba(0,0,0,0.9);
+            display: none;
             justify-content: center;
-            z-index: 100;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s;
-            backdrop-filter: blur(5px);
+            align-items: center;
+            z-index: 1000;
+            padding: 20px;
         }
 
         .modal.show {
-            opacity: 1;
-            visibility: visible;
+            display: flex;
         }
 
         .modal-content {
-            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            background: linear-gradient(180deg, #1a1a2e, #0f0f1a);
             border-radius: 20px;
-            padding: 32px;
-            width: 90%;
-            max-width: 320px;
+            padding: 24px;
+            width: 100%;
+            max-width: 360px;
+            border: 1px solid rgba(255,255,255,0.1);
+            animation: modalIn 0.3s ease;
+        }
+
+        @keyframes modalIn {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .modal-header {
             text-align: center;
-            border: 1px solid rgba(0,255,136,0.3);
-            box-shadow: 0 0 40px rgba(0,255,136,0.2);
+            margin-bottom: 20px;
         }
 
         .modal-header h2 {
-            margin-bottom: 16px;
             font-size: 24px;
+            margin-bottom: 8px;
         }
 
         .final-score {
-            font-size: 48px;
+            font-size: 56px;
             font-weight: bold;
-            color: #00ff88;
-            margin-bottom: 24px;
-            text-shadow: 0 0 20px rgba(0,255,136,0.5);
+            background: linear-gradient(90deg, #00ff88, #00ccff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .final-score.new-record {
+            animation: newRecordPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes newRecordPulse {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.3); }
         }
 
         .input-group {
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
 
         .input-group input {
             width: 100%;
-            padding: 14px;
+            padding: 14px 16px;
             border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 10px;
+            border-radius: 12px;
             background: rgba(255,255,255,0.05);
             color: #fff;
             font-size: 16px;
             text-align: center;
-            outline: none;
         }
 
         .input-group input:focus {
+            outline: none;
             border-color: #00ff88;
-            box-shadow: 0 0 10px rgba(0,255,136,0.3);
         }
 
         .btn-full {
             width: 100%;
             padding: 14px;
-            font-size: 16px;
-            font-weight: bold;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             background: linear-gradient(135deg, #00ff88, #00ccff);
             color: #000;
+            font-size: 16px;
+            font-weight: bold;
             cursor: pointer;
-            transition: all 0.3s;
+            margin-bottom: 10px;
         }
 
-        .btn-full:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0,255,136,0.4);
+        .btn-secondary {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            background: transparent;
+            color: #888;
+            font-size: 14px;
+            cursor: pointer;
         }
 
-        .btn-full:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
+        .difficulty-select {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .difficulty-btn {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: transparent;
+            color: #888;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .difficulty-btn.active {
+            background: linear-gradient(135deg, rgba(0,255,136,0.3), rgba(0,204,255,0.3));
+            border-color: #00ff88;
+            color: #fff;
         }
 
         /* 滚动条 */
         ::-webkit-scrollbar {
-            width: 6px;
+            width: 4px;
         }
 
         ::-webkit-scrollbar-track {
-            background: rgba(255,255,255,0.05);
-            border-radius: 3px;
+            background: transparent;
         }
 
         ::-webkit-scrollbar-thumb {
-            background: rgba(0,255,136,0.3);
-            border-radius: 3px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
         }
 
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(0,255,136,0.5);
+        /* 云端切换按钮 */
+        .cloud-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            padding: 10px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .cloud-toggle-label {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .cloud-toggle-btn {
+            padding: 8px 16px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            background: rgba(255,255,255,0.05);
+            color: #888;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .cloud-toggle-btn.active {
+            background: linear-gradient(135deg, rgba(0,255,136,0.3), rgba(0,204,255,0.3));
+            border-color: #00ff88;
+            color: #fff;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -40%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; transform: translate(-50%, -50%); }
+            to { opacity: 0; transform: translate(-50%, -60%); }
+        }
+
+        /* 分数变化动画 */
+        .info-card.changed .value {
+            animation: scoreChanged 0.3s ease;
+        }
+
+        @keyframes scoreChanged {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); color: #ffd700; }
+            100% { transform: scale(1); }
+        }
+
+        /* 响应式 */
+        @media (max-height: 700px) {
+            .container {
+                padding: 12px;
+            }
+            .header h1 {
+                font-size: 24px;
+            }
+            .dpad {
+                max-width: 160px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- 标题 -->
         <div class="header">
-            <h1>贪吃蛇大作战</h1>
-            <div class="subtitle">滑动屏幕或点击开始</div>
+            <h1>🐍 贪吃蛇</h1>
+            <div class="subtitle">SNAKE BATTLE v5.0</div>
+            <div class="version-badge">⚡ 道具 + 🤖 AI + 📱 PWA</div>
         </div>
 
+        <!-- 信息面板 -->
         <div class="info-panel">
             <div class="info-card">
-                <div class="label">得分</div>
+                <div class="label">当前分数</div>
                 <div class="value" id="score">0</div>
             </div>
             <div class="info-card">
-                <div class="label">最高分</div>
+                <div class="label">历史最高</div>
                 <div class="value high" id="highScore">0</div>
             </div>
             <div class="info-card">
@@ -479,37 +710,54 @@
             </div>
         </div>
 
+        <!-- 道具状态显示 -->
+        <div class="powerup-bar" id="activePowerups"></div>
+
+        <!-- 游戏画布 -->
         <div class="game-wrapper">
-            <canvas id="gameCanvas"></canvas>
+            <canvas id="particleCanvas" width="350" height="350"></canvas>
+            <canvas id="gameCanvas" width="350" height="350"></canvas>
             <div class="game-overlay" id="gameOverlay">
                 <div class="overlay-title">🐍</div>
-                <div class="overlay-subtitle">点击开始或滑动屏幕</div>
+                <div class="overlay-subtitle">点击开始或使用方向键</div>
+                <div class="powerup-legend">
+                    <div class="powerup-legend-item"><span>⚡</span> 加速x2</div>
+                    <div class="powerup-legend-item"><span>🐌</span> 减速x1.5</div>
+                    <div class="powerup-legend-item"><span>🌀</span> 穿墙</div>
+                    <div class="powerup-legend-item"><span>💎</span> 双倍x2</div>
+                </div>
                 <button class="btn-primary" onclick="startGame()">开始游戏</button>
             </div>
         </div>
 
         <!-- 控制按钮 -->
-        <div class="controls-row">
-            <div class="controls-group">
-                <span class="control-label">难度</span>
-                <div class="controls">
-                    <button class="control-btn active" id="btnEasy" onclick="setDifficulty('easy')">简单</button>
-                    <button class="control-btn" id="btnNormal" onclick="setDifficulty('normal')">普通</button>
-                    <button class="control-btn" id="btnHard" onclick="setDifficulty('hard')">困难</button>
-                </div>
-            </div>
-            <div class="controls-group">
-                <span class="control-label">皮肤</span>
-                <div class="controls">
-                    <button class="control-btn active" id="skinClassic" onclick="setSkin('classic')">经典</button>
-                    <button class="control-btn" id="skinNeon" onclick="setSkin('neon')">霓虹</button>
-                    <button class="control-btn" id="skinFire" onclick="setSkin('fire')">火焰</button>
-                    <button class="control-btn" id="skinOcean" onclick="setSkin('ocean')">海洋</button>
-                </div>
-            </div>
+        <div class="controls">
+            <button class="control-btn active" id="btnEasy" onclick="setDifficulty('easy')">简单</button>
+            <button class="control-btn" id="btnNormal" onclick="setDifficulty('normal')">普通</button>
+            <button class="control-btn" id="btnHard" onclick="setDifficulty('hard')">困难</button>
+            <button class="control-btn" onclick="toggleSound()" id="soundBtn">🔊</button>
         </div>
 
-        <button class="control-btn sound-btn" onclick="toggleSound()" id="soundBtn">🔊</button>
+        <!-- AI对战模式 -->
+        <div class="game-mode-toggle">
+            <span class="mode-label">游戏模式:</span>
+            <button class="mode-btn active" id="modeSolo" onclick="setGameMode('solo')">单人</button>
+            <button class="mode-btn" id="modeVsAI" onclick="setGameMode('vs-ai')">对战AI</button>
+        </div>
+
+        <!-- 云端开关 -->
+        <div class="cloud-toggle">
+            <span class="cloud-toggle-label">排行榜模式:</span>
+            <button class="cloud-toggle-btn" id="cloudToggleBtn" onclick="toggleCloud()">📱 本地</button>
+        </div>
+
+        <!-- 方向键 -->
+        <div class="dpad">
+            <button class="dpad-btn up" onclick="handleDirection('up')">⬆️</button>
+            <button class="dpad-btn left" onclick="handleDirection('left')">⬅️</button>
+            <button class="dpad-btn right" onclick="handleDirection('right')">➡️</button>
+            <button class="dpad-btn down" onclick="handleDirection('down')">⬇️</button>
+        </div>
 
         <!-- 排行榜 -->
         <div class="leaderboard-section">
@@ -540,10 +788,13 @@
                 <input type="text" id="playerName" placeholder="请输入你的名字" maxlength="10">
             </div>
             <button class="btn-full" onclick="submitScore()">提交成绩</button>
+            <button class="btn-secondary" onclick="closeModal()">暂不提交</button>
         </div>
     </div>
 
+    <!-- 腾讯云开发 SDK -->
+    <link rel="stylesheet" href="style.css">
     <script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/1.1.1/cloudbase.full.js"></script>
-    <script src="game.js?v=6.6"></script>
+    <script src="game.js?v=4.1"></script>
 </body>
 </html>
