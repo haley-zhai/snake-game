@@ -495,14 +495,16 @@ canvas.style.width = '100%';
 // ==================== 食物动画 ====================
 let foodPulse = 0;
 
-// ==================== 云端 API 接口 ====================
+// ==================== Cloud API ====================
 async function fetchLeaderboard() {
     try {
+        console.log('[Leaderboard] Fetching from:', `${API_BASE}/api/leaderboard`);
         const res = await fetch(`${API_BASE}/api/leaderboard`);
         const data = await res.json();
+        console.log('[Leaderboard] Data received:', data.length, 'items');
         
         leaderboardData = data.map(item => ({
-            name: item.name || '匿名',
+            name: item.name || 'Anonymous',
             score: parseInt(item.score) || 0,
             date: new Date(item.timestamp).toLocaleString('zh-CN'),
             timestamp: item.timestamp
@@ -510,6 +512,7 @@ async function fetchLeaderboard() {
         
         return leaderboardData;
     } catch (e) {
+        console.error('[Leaderboard] Error:', e);
         leaderboardData = [];
         return [];
     }
