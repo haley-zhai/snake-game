@@ -262,12 +262,15 @@
                 return;
             }
             try {
+                console.log('开始查询排行榜...');
                 const { data } = await cloudDb.collection('leaderboard')
                     .orderBy('score', 'desc').limit(10).get();
+                console.log('查询结果:', data);
                 leaderboardData = data.map(item => ({
                     name: item.name || '匿名',
                     score: parseInt(item.score) || 0
                 }));
+                console.log('处理后的数据:', leaderboardData);
                 renderLeaderboard();
             } catch (e) {
                 console.error('加载排行榜失败', e);
