@@ -44,15 +44,13 @@ async function initCloudBase() {
 
 // 获取排行榜数据
 async function fetchLeaderboard() {
-    // 先尝试从本地加载缓存
-    const cached = loadCachedLeaderboard();
-    
     // 初始化云开发
     const cloudReady = await initCloudBase();
     
     if (!cloudReady || !db) {
-        showStatus('使用本地排行榜', 'warn');
-        return fetchLocalLeaderboard();
+        showStatus('云端连接失败', 'error');
+        // 只返回缓存的数据，不返回本地个人记录
+        return loadCachedLeaderboard();
     }
     
     try {
@@ -74,18 +72,15 @@ async function fetchLeaderboard() {
             timestamp: item.timestamp || Date.now()
         }));
         
-        // 缓存到本地
+        // 缓存到本地（用于离线时显示）
         cacheLeaderboard(scores);
         
         return scores;
         
     } catch (e) {
         showStatus(`获取排行榜失败: ${e.message}`, 'error');
-        // 如果有缓存，返回缓存
-        if (cached.length > 0) {
-            return cached;
-        }
-        return fetchLocalLeaderboard();
+        // 云端失败时返回缓存的数据
+        return loadCachedLeaderboard();
     }
 }
 
