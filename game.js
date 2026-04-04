@@ -635,8 +635,15 @@ async function loadLeaderboard() {
 }
 
 function renderLeaderboard() {
+    console.log('[Render] Starting, data count:', leaderboardData.length);
+    
     const listEl = document.getElementById('leaderboardList');
     const countEl = document.getElementById('leaderboardCount');
+    
+    if (!listEl) {
+        console.error('[Render] leaderboardList element not found!');
+        return;
+    }
     
     countEl.textContent = leaderboardData.length + ' 人玩过';
     
@@ -760,8 +767,12 @@ if (savedSkin && SKINS[savedSkin]) {
 }
 
 document.getElementById('highScore').textContent = getHighScore();
-loadLeaderboard();
 drawGame();
+
+// 延迟加载排行榜，确保DOM完全就绪
+setTimeout(() => {
+    loadLeaderboard();
+}, 500);
 
 // 设置皮肤按钮状态
 setTimeout(() => {
