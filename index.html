@@ -2,20 +2,11 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#00ff88">
-    <link rel="manifest" href="manifest.json">
-    <title>贪吃蛇大作战 v5.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>贪吃蛇大作战</title>
+    <script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/1.1.1/cloudbase.full.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
@@ -23,778 +14,480 @@
             color: #fff;
             overflow-x: hidden;
         }
-
-        /* 主容器 */
         .container {
             max-width: 480px;
             margin: 0 auto;
             padding: 16px;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
         }
-
-        /* 标题区域 */
         .header {
             text-align: center;
-            padding: 12px 0;
+            padding: 20px 0;
         }
-
         .header h1 {
-            font-size: 28px;
+            font-size: 32px;
             background: linear-gradient(90deg, #00ff88, #00ccff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 30px rgba(0,255,136,0.3);
-            letter-spacing: 4px;
         }
-
-        .header .subtitle {
-            font-size: 12px;
-            color: #888;
-            margin-top: 4px;
-        }
-
-        .version-badge {
-            display: inline-block;
-            margin-top: 8px;
-            padding: 4px 12px;
-            background: linear-gradient(135deg, rgba(255,100,100,0.3), rgba(100,100,255,0.3));
-            border-radius: 12px;
-            font-size: 12px;
-            color: #ffcc88;
-            border: 1px solid rgba(255,200,100,0.3);
-        }
-
-        /* 游戏信息面板 */
-        .info-panel {
+        .game-info {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 12px;
-            margin-bottom: 12px;
-        }
-
-        .info-card {
-            background: rgba(255,255,255,0.05);
-            border-radius: 12px;
-            padding: 12px 8px;
-            text-align: center;
-            border: 1px solid rgba(255,255,255,0.1);
-            transition: all 0.3s;
-        }
-
-        .info-card:hover {
-            background: rgba(255,255,255,0.08);
-            transform: translateY(-2px);
-        }
-
-        .info-card .label {
-            font-size: 11px;
-            color: #888;
-            margin-bottom: 4px;
-        }
-
-        .info-card .value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #00ff88;
-        }
-
-        .info-card .value.high {
-            color: #ffd700;
-        }
-
-        .info-card .value.rank {
-            color: #ff6b6b;
-        }
-
-        /* 道具状态区域 */
-        .powerup-status {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 12px;
-            min-height: 40px;
-            padding: 8px;
-            background: rgba(0,0,0,0.3);
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .powerup-badge {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 10px;
-            background: rgba(0,0,0,0.5);
-            border-radius: 20px;
-            border: 2px solid;
-            font-size: 12px;
-            position: relative;
-            overflow: hidden;
-            animation: powerupPulse 1s ease-in-out infinite;
-        }
-
-        @keyframes powerupPulse {
-            0%, 100% { box-shadow: 0 0 5px currentColor; }
-            50% { box-shadow: 0 0 15px currentColor; }
-        }
-
-        .powerup-emoji {
-            font-size: 16px;
-        }
-
-        .powerup-timer {
-            font-weight: bold;
-            color: #fff;
-            min-width: 24px;
-            text-align: center;
-        }
-
-        .powerup-bar {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            height: 3px;
-            background: currentColor;
-            transition: width 0.1s linear;
-        }
-
-        /* 游戏画布区域 */
-        .game-wrapper {
-            position: relative;
-            background: #000;
-            border-radius: 16px;
-            padding: 8px;
-            box-shadow: 0 0 40px rgba(0,255,136,0.15), inset 0 0 20px rgba(0,0,0,0.5);
             margin-bottom: 16px;
         }
-
-        #gameCanvas {
+        .info-box {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .info-box .label { font-size: 11px; color: #888; margin-bottom: 4px; }
+        .info-box .value { font-size: 24px; font-weight: bold; color: #00ff88; }
+        .game-area {
+            position: relative;
+            background: rgba(0,0,0,0.3);
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 16px;
+            border: 2px solid rgba(0,255,136,0.2);
+        }
+        canvas {
             display: block;
             width: 100%;
             border-radius: 8px;
             background: #0a0a0f;
         }
-
-        /* 游戏遮罩层 */
-        .game-overlay {
+        .overlay {
             position: absolute;
-            top: 8px;
-            left: 8px;
-            right: 8px;
-            bottom: 8px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            top: 12px; left: 12px; right: 12px; bottom: 12px;
             background: rgba(0,0,0,0.85);
             border-radius: 8px;
-            transition: opacity 0.3s;
-        }
-
-        .game-overlay.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        .overlay-title {
-            font-size: 32px;
-            font-weight: bold;
-            margin-bottom: 12px;
-            background: linear-gradient(90deg, #00ff88, #00ccff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .overlay-subtitle {
-            font-size: 14px;
-            color: #888;
-            margin-bottom: 24px;
-        }
-
-        .powerup-legend {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-            margin-bottom: 16px;
-            font-size: 11px;
-            color: #aaa;
-        }
-
-        .powerup-legend-item {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 6px;
-        }
-
-        /* 游戏模式切换 */
-        .game-mode-toggle {
-            display: flex;
             justify-content: center;
-            align-items: center;
-            gap: 8px;
-            margin: 12px 0;
-            padding: 8px;
-            background: rgba(255,255,255,0.03);
-            border-radius: 12px;
+            gap: 16px;
         }
-
-        .mode-label {
-            font-size: 12px;
-            color: #888;
-        }
-
-        .mode-btn {
-            padding: 6px 14px;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(255,255,255,0.05);
-            color: #ccc;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.3s;
-        }
-
-        .mode-btn.active {
-            background: linear-gradient(90deg, #ff6b6b, #ff8e8e);
-            color: #fff;
-            border-color: transparent;
-        }
-
-        .btn-primary {
-            padding: 14px 48px;
+        .overlay.hidden { display: none; }
+        .btn-start {
+            padding: 16px 40px;
+            font-size: 18px;
+            font-weight: bold;
             border: none;
-            border-radius: 25px;
+            border-radius: 30px;
             background: linear-gradient(135deg, #00ff88, #00ccff);
             color: #000;
-            font-size: 16px;
-            font-weight: bold;
             cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 4px 15px rgba(0,255,136,0.4);
         }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0,255,136,0.5);
-        }
-
-        .btn-primary:active {
-            transform: translateY(0);
-        }
-
-        /* 控制按钮区 */
         .controls {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
+            display: flex;
+            gap: 8px;
             margin-bottom: 16px;
         }
-
-        .control-btn {
-            padding: 12px 8px;
+        .btn {
+            flex: 1;
+            padding: 12px;
             border: 1px solid rgba(255,255,255,0.2);
             border-radius: 10px;
             background: rgba(255,255,255,0.05);
             color: #fff;
-            font-size: 13px;
+            font-size: 14px;
             cursor: pointer;
-            transition: all 0.2s;
-            text-align: center;
         }
-
-        .control-btn:hover {
-            background: rgba(255,255,255,0.1);
-            border-color: rgba(255,255,255,0.3);
-        }
-
-        .control-btn.active {
+        .btn.active {
             background: linear-gradient(135deg, rgba(0,255,136,0.3), rgba(0,204,255,0.3));
             border-color: #00ff88;
         }
-
-        /* 方向键 */
-        .dpad {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            max-width: 200px;
-            margin: 0 auto 16px;
-        }
-
-        .dpad-btn {
-            aspect-ratio: 1;
-            border: none;
-            border-radius: 12px;
-            background: rgba(255,255,255,0.1);
-            color: #fff;
-            font-size: 20px;
-            cursor: pointer;
-            transition: all 0.15s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .dpad-btn:active {
-            background: rgba(0,255,136,0.3);
-            transform: scale(0.95);
-        }
-
-        .dpad-btn.up { grid-column: 2; }
-        .dpad-btn.left { grid-column: 1; grid-row: 2; }
-        .dpad-btn.right { grid-column: 3; grid-row: 2; }
-        .dpad-btn.down { grid-column: 2; grid-row: 3; }
-
-        /* 排行榜区域 */
-        .leaderboard-section {
+        .leaderboard {
             background: rgba(255,255,255,0.03);
             border-radius: 16px;
             padding: 16px;
             border: 1px solid rgba(255,255,255,0.1);
         }
-
-        .leaderboard-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-        }
-
-        .leaderboard-title {
-            font-size: 18px;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .leaderboard-count {
-            font-size: 12px;
-            color: #888;
-            background: rgba(255,255,255,0.1);
-            padding: 4px 10px;
-            border-radius: 12px;
-        }
-
-        .leaderboard-list {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        .leaderboard-empty {
-            text-align: center;
-            padding: 40px 20px;
-            color: #666;
-        }
-
-        .leaderboard-empty .icon {
-            font-size: 48px;
-            margin-bottom: 12px;
-            opacity: 0.5;
-        }
-
+        .leaderboard h3 { margin-bottom: 12px; font-size: 18px; }
         .leaderboard-item {
             display: flex;
             align-items: center;
-            padding: 12px;
+            padding: 10px;
             background: rgba(255,255,255,0.05);
-            border-radius: 10px;
+            border-radius: 8px;
             margin-bottom: 8px;
-            transition: all 0.2s;
         }
-
-        .leaderboard-item:hover {
-            background: rgba(255,255,255,0.08);
-        }
-
-        .leaderboard-item.highlight {
-            background: linear-gradient(90deg, rgba(0,255,136,0.2), rgba(0,204,255,0.2));
-            border: 1px solid rgba(0,255,136,0.3);
-        }
-
         .rank-num {
-            width: 32px;
-            height: 32px;
+            width: 28px; height: 28px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 12px;
             margin-right: 12px;
         }
-
-        .rank-num.gold {
-            background: linear-gradient(135deg, #ffd700, #ffaa00);
-            color: #000;
-        }
-
-        .rank-num.silver {
-            background: linear-gradient(135deg, #c0c0c0, #a0a0a0);
-            color: #000;
-        }
-
-        .rank-num.bronze {
-            background: linear-gradient(135deg, #cd7f32, #b87333);
-            color: #fff;
-        }
-
-        .rank-num.normal {
-            background: rgba(255,255,255,0.1);
-            color: #888;
-        }
-
-        .rank-info {
-            flex: 1;
-        }
-
-        .rank-name {
-            font-size: 15px;
-            font-weight: 500;
-            margin-bottom: 2px;
-        }
-
-        .rank-time {
-            font-size: 11px;
-            color: #666;
-        }
-
-        .rank-score {
-            font-size: 18px;
-            font-weight: bold;
-            color: #00ff88;
-        }
-
-        /* 弹窗 */
+        .rank-1 { background: linear-gradient(135deg, #ffd700, #ffaa00); color: #000; }
+        .rank-2 { background: linear-gradient(135deg, #c0c0c0, #a0a0a0); color: #000; }
+        .rank-3 { background: linear-gradient(135deg, #cd7f32, #b87333); color: #fff; }
+        .rank-other { background: rgba(255,255,255,0.1); color: #888; }
+        .rank-name { flex: 1; }
+        .rank-score { font-weight: bold; color: #00ff88; }
         .modal {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.9);
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
             display: none;
-            justify-content: center;
             align-items: center;
-            z-index: 1000;
-            padding: 20px;
+            justify-content: center;
+            z-index: 100;
         }
-
-        .modal.show {
-            display: flex;
-        }
-
+        .modal.show { display: flex; }
         .modal-content {
-            background: linear-gradient(180deg, #1a1a2e, #0f0f1a);
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
             border-radius: 20px;
-            padding: 24px;
-            width: 100%;
-            max-width: 360px;
-            border: 1px solid rgba(255,255,255,0.1);
-            animation: modalIn 0.3s ease;
-        }
-
-        @keyframes modalIn {
-            from { transform: scale(0.9); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
-
-        .modal-header {
+            padding: 32px;
+            width: 90%;
+            max-width: 320px;
             text-align: center;
-            margin-bottom: 20px;
+            border: 1px solid rgba(0,255,136,0.3);
         }
-
-        .modal-header h2 {
-            font-size: 24px;
-            margin-bottom: 8px;
-        }
-
-        .final-score {
-            font-size: 56px;
-            font-weight: bold;
-            background: linear-gradient(90deg, #00ff88, #00ccff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        .final-score.new-record {
-            animation: newRecordPulse 1s ease-in-out infinite;
-        }
-
-        @keyframes newRecordPulse {
-            0%, 100% { filter: brightness(1); }
-            50% { filter: brightness(1.3); }
-        }
-
-        .input-group {
-            margin-bottom: 16px;
-        }
-
-        .input-group input {
-            width: 100%;
-            padding: 14px 16px;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 12px;
-            background: rgba(255,255,255,0.05);
-            color: #fff;
-            font-size: 16px;
-            text-align: center;
-        }
-
-        .input-group input:focus {
-            outline: none;
-            border-color: #00ff88;
-        }
-
-        .btn-full {
+        .modal-content h2 { margin-bottom: 16px; }
+        .final-score { font-size: 48px; font-weight: bold; color: #00ff88; margin-bottom: 20px; }
+        .modal-content input {
             width: 100%;
             padding: 14px;
-            border: none;
-            border-radius: 12px;
-            background: linear-gradient(135deg, #00ff88, #00ccff);
-            color: #000;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+        .btn-submit {
+            width: 100%;
+            padding: 14px;
             font-size: 16px;
             font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #00ff88, #00ccff);
+            color: #000;
             cursor: pointer;
-            margin-bottom: 10px;
-        }
-
-        .btn-secondary {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 12px;
-            background: transparent;
-            color: #888;
-            font-size: 14px;
-            cursor: pointer;
-        }
-
-        .difficulty-select {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 16px;
-        }
-
-        .difficulty-btn {
-            flex: 1;
-            padding: 10px;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 8px;
-            background: transparent;
-            color: #888;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .difficulty-btn.active {
-            background: linear-gradient(135deg, rgba(0,255,136,0.3), rgba(0,204,255,0.3));
-            border-color: #00ff88;
-            color: #fff;
-        }
-
-        /* 滚动条 */
-        ::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: rgba(255,255,255,0.2);
-            border-radius: 2px;
-        }
-
-        /* 云端切换按钮 */
-        .cloud-toggle {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            margin-bottom: 16px;
-            padding: 10px;
-            background: rgba(255,255,255,0.03);
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .cloud-toggle-label {
-            font-size: 13px;
-            color: #888;
-        }
-
-        .cloud-toggle-btn {
-            padding: 8px 16px;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 20px;
-            background: rgba(255,255,255,0.05);
-            color: #888;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .cloud-toggle-btn.active {
-            background: linear-gradient(135deg, rgba(0,255,136,0.3), rgba(0,204,255,0.3));
-            border-color: #00ff88;
-            color: #fff;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translate(-50%, -40%); }
-            to { opacity: 1; transform: translate(-50%, -50%); }
-        }
-
-        @keyframes fadeOut {
-            from { opacity: 1; transform: translate(-50%, -50%); }
-            to { opacity: 0; transform: translate(-50%, -60%); }
-        }
-
-        /* 分数变化动画 */
-        .info-card.changed .value {
-            animation: scoreChanged 0.3s ease;
-        }
-
-        @keyframes scoreChanged {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.3); color: #ffd700; }
-            100% { transform: scale(1); }
-        }
-
-        /* 响应式 */
-        @media (max-height: 700px) {
-            .container {
-                padding: 12px;
-            }
-            .header h1 {
-                font-size: 24px;
-            }
-            .dpad {
-                max-width: 160px;
-            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- 标题 -->
         <div class="header">
-            <h1>🐍 贪吃蛇</h1>
-            <div class="subtitle">SNAKE BATTLE v5.0</div>
-            <div class="version-badge">⚡ 道具 + 🤖 AI + 📱 PWA</div>
+            <h1>🐍 贪吃蛇大作战</h1>
         </div>
 
-        <!-- 信息面板 -->
-        <div class="info-panel">
-            <div class="info-card">
-                <div class="label">当前分数</div>
+        <div class="game-info">
+            <div class="info-box">
+                <div class="label">得分</div>
                 <div class="value" id="score">0</div>
             </div>
-            <div class="info-card">
-                <div class="label">历史最高</div>
-                <div class="value high" id="highScore">0</div>
+            <div class="info-box">
+                <div class="label">最高分</div>
+                <div class="value" id="highScore">0</div>
             </div>
-            <div class="info-card">
-                <div class="label">我的排名</div>
-                <div class="value rank" id="myRank">-</div>
+            <div class="info-box">
+                <div class="label">排名</div>
+                <div class="value" id="myRank">-</div>
             </div>
         </div>
 
-        <!-- 道具状态显示 -->
-        <div class="powerup-bar" id="activePowerups"></div>
-
-        <!-- 游戏画布 -->
-        <div class="game-wrapper">
-            <canvas id="particleCanvas" width="350" height="350"></canvas>
+        <div class="game-area">
             <canvas id="gameCanvas" width="350" height="350"></canvas>
-            <div class="game-overlay" id="gameOverlay">
-                <div class="overlay-title">🐍</div>
-                <div class="overlay-subtitle">点击开始或使用方向键</div>
-                <div class="powerup-legend">
-                    <div class="powerup-legend-item"><span>⚡</span> 加速x2</div>
-                    <div class="powerup-legend-item"><span>🐌</span> 减速x1.5</div>
-                    <div class="powerup-legend-item"><span>🌀</span> 穿墙</div>
-                    <div class="powerup-legend-item"><span>💎</span> 双倍x2</div>
-                </div>
-                <button class="btn-primary" onclick="startGame()">开始游戏</button>
+            <div class="overlay" id="overlay">
+                <div style="font-size: 64px;">🐍</div>
+                <div style="color: #888;">点击开始或滑动屏幕</div>
+                <button class="btn-start" onclick="startGame()">开始游戏</button>
             </div>
         </div>
 
-        <!-- 控制按钮 -->
         <div class="controls">
-            <button class="control-btn active" id="btnEasy" onclick="setDifficulty('easy')">简单</button>
-            <button class="control-btn" id="btnNormal" onclick="setDifficulty('normal')">普通</button>
-            <button class="control-btn" id="btnHard" onclick="setDifficulty('hard')">困难</button>
-            <button class="control-btn" onclick="toggleSound()" id="soundBtn">🔊</button>
+            <button class="btn active" onclick="setDifficulty('easy')">简单</button>
+            <button class="btn" onclick="setDifficulty('normal')">普通</button>
+            <button class="btn" onclick="setDifficulty('hard')">困难</button>
         </div>
 
-        <!-- AI对战模式 -->
-        <div class="game-mode-toggle">
-            <span class="mode-label">游戏模式:</span>
-            <button class="mode-btn active" id="modeSolo" onclick="setGameMode('solo')">单人</button>
-            <button class="mode-btn" id="modeVsAI" onclick="setGameMode('vs-ai')">对战AI</button>
-        </div>
-
-        <!-- 云端开关 -->
-        <div class="cloud-toggle">
-            <span class="cloud-toggle-label">排行榜模式:</span>
-            <button class="cloud-toggle-btn" id="cloudToggleBtn" onclick="toggleCloud()">📱 本地</button>
-        </div>
-
-        <!-- 方向键 -->
-        <div class="dpad">
-            <button class="dpad-btn up" onclick="handleDirection('up')">⬆️</button>
-            <button class="dpad-btn left" onclick="handleDirection('left')">⬅️</button>
-            <button class="dpad-btn right" onclick="handleDirection('right')">➡️</button>
-            <button class="dpad-btn down" onclick="handleDirection('down')">⬇️</button>
-        </div>
-
-        <!-- 排行榜 -->
-        <div class="leaderboard-section">
-            <div class="leaderboard-header">
-                <div class="leaderboard-title">
-                    🏆 排行榜
-                </div>
-                <div class="leaderboard-count" id="leaderboardCount">0 人玩过</div>
-            </div>
-            <div class="leaderboard-list" id="leaderboardList">
-                <div class="leaderboard-empty">
-                    <div class="icon">🏆</div>
-                    <div>还没有人上榜</div>
-                    <div style="font-size: 12px; margin-top: 8px;">成为第一个挑战者吧！</div>
-                </div>
+        <div class="leaderboard">
+            <h3>🏆 排行榜</h3>
+            <div id="leaderboardList">
+                <div style="text-align: center; padding: 40px; color: #666;">加载中...</div>
             </div>
         </div>
     </div>
 
-    <!-- 游戏结束弹窗 -->
     <div class="modal" id="gameOverModal">
         <div class="modal-content">
-            <div class="modal-header">
-                <h2>💥 游戏结束</h2>
-            </div>
+            <h2>💥 游戏结束</h2>
             <div class="final-score" id="finalScore">0</div>
-            <div class="input-group">
-                <input type="text" id="playerName" placeholder="请输入你的名字" maxlength="10">
-            </div>
-            <button class="btn-full" onclick="submitScore()">提交成绩</button>
-            <button class="btn-secondary" onclick="closeModal()">暂不提交</button>
+            <input type="text" id="playerName" placeholder="输入名字" maxlength="10">
+            <button class="btn-submit" onclick="submitScore()">提交成绩</button>
         </div>
     </div>
 
-    <!-- 腾讯云开发 SDK -->
-    <link rel="stylesheet" href="style.css">
-    <script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/1.1.1/cloudbase.full.js"></script>
-    <script src="game.js?v=4.1"></script>
+    <script>
+        // ========== 腾讯云配置 ==========
+        const CLOUDBASE_ENV = 'snake-game-5gvtkwf262c3ddc4';
+        let cloudApp = null, cloudDb = null, isCloudReady = false;
+        let leaderboardData = [];
+
+        async function initCloud() {
+            if (isCloudReady) return true;
+            try {
+                if (typeof cloudbase === 'undefined') return false;
+                cloudApp = cloudbase.init({ env: CLOUDBASE_ENV });
+                await cloudApp.auth().anonymousAuthProvider().signIn();
+                cloudDb = cloudApp.database();
+                isCloudReady = true;
+                return true;
+            } catch (e) { return false; }
+        }
+
+        async function loadLeaderboard() {
+            await initCloud();
+            if (!cloudDb) return;
+            try {
+                const { data } = await cloudDb.collection('leaderboard')
+                    .orderBy('score', 'desc').limit(10).get();
+                leaderboardData = data.map(item => ({
+                    name: item.name || '匿名',
+                    score: parseInt(item.score) || 0
+                }));
+                renderLeaderboard();
+            } catch (e) { console.error('加载排行榜失败', e); }
+        }
+
+        async function submitToCloud(name, score) {
+            await initCloud();
+            if (!cloudDb) return null;
+            try {
+                await cloudDb.collection('leaderboard').add({
+                    name, score, timestamp: Date.now(),
+                    date: new Date().toLocaleString('zh-CN')
+                });
+                await loadLeaderboard();
+                const rank = leaderboardData.findIndex(i => i.name === name) + 1;
+                return rank > 0 ? rank : null;
+            } catch (e) { return null; }
+        }
+
+        function renderLeaderboard() {
+            const list = document.getElementById('leaderboardList');
+            if (leaderboardData.length === 0) {
+                list.innerHTML = '<div style="text-align:center;padding:40px;color:#666;">还没有人上榜</div>';
+                return;
+            }
+            list.innerHTML = leaderboardData.map((item, i) => {
+                const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other';
+                return `
+                    <div class="leaderboard-item">
+                        <div class="rank-num ${rankClass}">${i + 1}</div>
+                        <div class="rank-name">${escapeHtml(item.name)}</div>
+                        <div class="rank-score">${item.score}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ========== 游戏核心 ==========
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const GRID_SIZE = 20, TILE_COUNT = 17;
+        
+        let snake = [], food = {}, dx = 1, dy = 0, score = 0;
+        let gameLoop = null, isGameOver = false, isPlaying = false;
+        let difficulty = 'easy', speed = 150;
+
+        const speeds = { easy: 150, normal: 100, hard: 60 };
+
+        function draw() {
+            // 背景
+            ctx.fillStyle = '#0a0a0f';
+            ctx.fillRect(0, 0, 350, 350);
+            
+            // 网格
+            ctx.strokeStyle = 'rgba(0,255,136,0.05)';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= TILE_COUNT; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * GRID_SIZE, 0);
+                ctx.lineTo(i * GRID_SIZE, 350);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * GRID_SIZE);
+                ctx.lineTo(350, i * GRID_SIZE);
+                ctx.stroke();
+            }
+
+            // 蛇
+            snake.forEach((seg, i) => {
+                const x = seg.x * GRID_SIZE, y = seg.y * GRID_SIZE;
+                ctx.fillStyle = i === 0 ? '#00ff88' : `rgba(0,255,136,${0.8 - i * 0.03})`;
+                ctx.shadowBlur = i === 0 ? 10 : 0;
+                ctx.shadowColor = '#00ff88';
+                ctx.fillRect(x + 1, y + 1, GRID_SIZE - 2, GRID_SIZE - 2);
+            });
+            ctx.shadowBlur = 0;
+
+            // 食物
+            const fx = food.x * GRID_SIZE + GRID_SIZE/2;
+            const fy = food.y * GRID_SIZE + GRID_SIZE/2;
+            ctx.fillStyle = '#ff6b6b';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ff6b6b';
+            ctx.beginPath();
+            ctx.arc(fx, fy, GRID_SIZE/2 - 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+            // 撞墙
+            if (head.x < 0 || head.x >= TILE_COUNT || head.y < 0 || head.y >= TILE_COUNT) {
+                gameOver();
+                return;
+            }
+
+            // 撞自己
+            for (let seg of snake) {
+                if (head.x === seg.x && head.y === seg.y) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            snake.unshift(head);
+
+            // 吃食物
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                document.getElementById('score').textContent = score;
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('snakeHigh', highScore);
+                    document.getElementById('highScore').textContent = highScore;
+                }
+                placeFood();
+            } else {
+                snake.pop();
+            }
+
+            draw();
+        }
+
+        function placeFood() {
+            let f;
+            do {
+                f = {
+                    x: Math.floor(Math.random() * TILE_COUNT),
+                    y: Math.floor(Math.random() * TILE_COUNT)
+                };
+            } while (snake.some(s => s.x === f.x && s.y === f.y));
+            food = f;
+        }
+
+        function startGame() {
+            snake = [{ x: 5, y: 5 }];
+            dx = 1; dy = 0;
+            score = 0;
+            isGameOver = false;
+            isPlaying = true;
+            document.getElementById('score').textContent = '0';
+            document.getElementById('overlay').classList.add('hidden');
+            document.getElementById('gameOverModal').classList.remove('show');
+            placeFood();
+            if (gameLoop) clearInterval(gameLoop);
+            gameLoop = setInterval(update, speed);
+            draw();
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            isPlaying = false;
+            clearInterval(gameLoop);
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOverModal').classList.add('show');
+        }
+
+        function setDifficulty(d) {
+            difficulty = d;
+            speed = speeds[d];
+            document.querySelectorAll('.controls .btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        async function submitScore() {
+            const name = document.getElementById('playerName').value.trim();
+            if (!name || name.length > 10) {
+                alert('请输入1-10个字符的名字');
+                return;
+            }
+            const rank = await submitToCloud(name, score);
+            if (rank) document.getElementById('myRank').textContent = '#' + rank;
+            document.getElementById('gameOverModal').classList.remove('show');
+            document.getElementById('overlay').classList.remove('hidden');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ========== 控制 ==========
+        document.addEventListener('keydown', (e) => {
+            const keyMap = {
+                ArrowUp: [0, -1], ArrowDown: [0, 1],
+                ArrowLeft: [-1, 0], ArrowRight: [1, 1],
+                w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0]
+            };
+            if (keyMap[e.key]) {
+                e.preventDefault();
+                const [ndx, ndy] = keyMap[e.key];
+                if (ndx !== -dx || ndy !== -dy) { dx = ndx; dy = ndy; }
+                if (!isPlaying && !isGameOver) startGame();
+            }
+        });
+
+        // 触屏控制
+        let touchStartX = 0, touchStartY = 0;
+        document.addEventListener('touchstart', e => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            if (!isPlaying && !isGameOver) startGame();
+        }, { passive: true });
+
+        document.addEventListener('touchmove', e => {
+            if (isPlaying) e.preventDefault();
+        }, { passive: false });
+
+        document.addEventListener('touchend', e => {
+            if (!isPlaying) return;
+            const dx1 = e.changedTouches[0].clientX - touchStartX;
+            const dy1 = e.changedTouches[0].clientY - touchStartY;
+            if (Math.abs(dx1) < 30 && Math.abs(dy1) < 30) return;
+            
+            if (Math.abs(dx1) > Math.abs(dy1)) {
+                if (dx1 > 0 && dx !== -1) { dx = 1; dy = 0; }
+                else if (dx1 < 0 && dx !== 1) { dx = -1; dy = 0; }
+            } else {
+                if (dy1 > 0 && dy !== -1) { dx = 0; dy = 1; }
+                else if (dy1 < 0 && dy !== 1) { dx = 0; dy = -1; }
+            }
+        }, { passive: true });
+
+        // ========== 初始化 ==========
+        let highScore = parseInt(localStorage.getItem('snakeHigh') || '0');
+        document.getElementById('highScore').textContent = highScore;
+        draw();
+        loadLeaderboard();
+    </script>
 </body>
 </html>
