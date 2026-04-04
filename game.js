@@ -1108,12 +1108,18 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// 触摸控制
+// 触摸控制 - 阻止页面滚动
 let touchStartX = 0, touchStartY = 0;
+
 document.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
-}, { passive: true });
+}, { passive: false });
+
+document.addEventListener('touchmove', (e) => {
+    // 阻止页面滚动
+    e.preventDefault();
+}, { passive: false });
 
 document.addEventListener('touchend', (e) => {
     const dx = e.changedTouches[0].clientX - touchStartX;
@@ -1125,7 +1131,7 @@ document.addEventListener('touchend', (e) => {
     } else if (Math.abs(dy) > minSwipe) {
         handleDirection(dy > 0 ? 'down' : 'up');
     }
-}, { passive: true });
+}, { passive: false });
 
 // 虚拟方向键
 function setupDirectionButtons() {
