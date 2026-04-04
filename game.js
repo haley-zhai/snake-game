@@ -1203,19 +1203,44 @@ function closeLeaderboard() {
 async function loadLeaderboard() {
     await fetchLeaderboard();
     
-    const tbody = document.getElementById('leaderboardBody');
-    if (!tbody) return;
+    const listContainer = document.getElementById('leaderboardList');
+    const countEl = document.getElementById('leaderboardCount');
     
-    tbody.innerHTML = leaderboardData.slice(0, 10).map((item, i) => `
-        <tr>
-            <td>${i + 1}</td>
-            <td>${escapeHtml(item.name)}</td>
-            <td>${item.score}</td>
-        </tr>
-    `).join('');
+    if (countEl) {
+        countEl.textContent = `${leaderboardData.length} 人玩过`;
+    }
+    
+    if (!listContainer) return;
+    
+    if (leaderboardData.length === 0) {
+        listContainer.innerHTML = `
+            <div class="leaderboard-empty">
+                <div class="icon">🏆</div>
+                <div>还没有人上榜</div>
+                <div style="font-size: 12px; margin-top: 8px;">成为第一个挑战者吧！</div>
+            </div>
+        `;
+        return;
+    }
+    
+    const myName = getPlayerName();
+    
+    listContainer.innerHTML = leaderboardData.slice(0, 50).map((item, i) => {
+        const isMe = item.name === myName;
+        const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal';
+        return `
+            <div class="leaderboard-item ${isMe ? 'highlight' : ''}">
+                <div class="rank-num ${rankClass}">${i + 1}</div>
+                <div class="rank-info">
+                    <div class="rank-name">${escapeHtml(item.name)}</div>
+                    <div class="rank-time">${item.date}</div>
+                </div>
+                <div class="rank-score">${item.score}</div>
+            </div>
+        `;
+    }).join('');
     
     // 显示我的排名
-    const myName = getPlayerName();
     if (myName) {
         const myIndex = leaderboardData.findIndex(item => item.name === myName);
         if (myIndex !== -1) {
