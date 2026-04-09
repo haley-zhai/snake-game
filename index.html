@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>贪吃蛇大作战</title>
-    <script src="https://cdn.jsdelivr.net/npm/@cloudbase/js-sdk@2.27.2/dist/cloudbase.full.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -229,68 +228,45 @@
     </div>
 
     <script>
-        // ========== 腾讯云配置 ==========
-        const CLOUDBASE_ENV = 'snake-game-5gvtkwf262c3ddc4';
-        let cloudApp = null, cloudDb = null, isCloudReady = false;
+        // ========== 自建服务器配置 ==========
+        const API_BASE = 'http://134.175.187.78:3000';
         let leaderboardData = [];
 
-        async function initCloud() {
-            if (isCloudReady) return true;
-            try {
-                if (typeof cloudbase === 'undefined') {
-                    console.error('腾讯云SDK未加载');
-                    return false;
-                }
-                cloudApp = cloudbase.init({ env: CLOUDBASE_ENV });
-                await cloudApp.auth().anonymousAuthProvider().signIn();
-                cloudDb = cloudApp.database();
-                isCloudReady = true;
-                console.log('腾讯云连接成功');
-                return true;
-            } catch (e) {
-                console.error('腾讯云初始化失败:', e.message);
-                return false;
-            }
-        }
-
         async function loadLeaderboard() {
-            const ready = await initCloud();
-            if (!ready || !cloudDb) {
-                // 云端不可用，显示空状态
-                leaderboardData = [];
-                renderLeaderboard();
-                return;
-            }
             try {
-                console.log('开始查询排行榜...');
-                const { data } = await cloudDb.collection('leaderboard')
-                    .orderBy('score', 'desc').limit(10).get();
-                console.log('查询结果:', data);
-                leaderboardData = data.map(item => ({
-                    name: item.name || '匿名',
-                    score: parseInt(item.score) || 0
-                }));
-                console.log('处理后的数据:', leaderboardData);
-                renderLeaderboard();
+                const res = await fetch(`${API_BASE}/api/leaderboard`);
+                const result = await res.json();
+                if (result.success) {
+                    leaderboardData = result.data.map(item => ({
+                        name: item.name || '匿名',
+                        score: parseInt(item.score) || 0
+                    }));
+                } else {
+                    leaderboardData = [];
+                }
             } catch (e) {
                 console.error('加载排行榜失败', e);
                 leaderboardData = [];
-                renderLeaderboard();
             }
+            renderLeaderboard();
         }
 
         async function submitToCloud(name, score) {
-            await initCloud();
-            if (!cloudDb) return null;
             try {
-                await cloudDb.collection('leaderboard').add({
-                    name, score, timestamp: Date.now(),
-                    date: new Date().toLocaleString('zh-CN')
+                const res = await fetch(`${API_BASE}/api/leaderboard`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, score })
                 });
-                await loadLeaderboard();
-                const rank = leaderboardData.findIndex(i => i.name === name) + 1;
-                return rank > 0 ? rank : null;
-            } catch (e) { return null; }
+                const result = await res.json();
+                if (result.success) {
+                    await loadLeaderboard();
+                    return result.rank;
+                }
+            } catch (e) {
+                console.error('提交分数失败', e);
+            }
+            return null;
         }
 
         function renderLeaderboard() {
