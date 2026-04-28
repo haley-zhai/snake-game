@@ -1,11 +1,18 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
+const cors = require('cors');
 const path = require('path');
 const app = express();
-const PORT = 3000;
+const PORT = 3001;
+
+// 允许 GitHub Pages 和域名访问
+app.use(cors({
+  origin: ['https://haley-zhai.github.io', 'http://game.qinjiang.top', 'https://game.qinjiang.top', 'http://localhost:8080'],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type']
+}));
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
 // SQLite 数据库
 const db = new sqlite3.Database(path.join(__dirname, 'leaderboard.db'));
