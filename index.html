@@ -228,29 +228,45 @@
     </div>
 
     <script>
-        // ========== 本地排行榜 ==========
+        // ========== 云端排行榜 ==========
+        const API_BASE = '/api/leaderboard';
         let leaderboardData = [];
 
-        function loadLeaderboard() {
+        async function loadLeaderboard() {
             try {
-                const saved = localStorage.getItem('snakeLeaderboard');
-                if (saved) {
-                    leaderboardData = JSON.parse(saved);
+                const res = await fetch(API_BASE);
+                const result = await res.json();
+                if (result.success) {
+                    leaderboardData = result.data.map(item => ({
+                        name: item.name || '匿名',
+                        score: item.score || 0
+                    }));
                 } else {
                     leaderboardData = [];
                 }
             } catch (e) {
+                console.error('加载排行榜失败', e);
                 leaderboardData = [];
             }
             renderLeaderboard();
         }
 
-        function saveToLeaderboard(name, score) {
-            leaderboardData.push({ name: name || '匿名', score: score, time: Date.now() });
-            leaderboardData.sort((a, b) => b.score - a.score);
-            leaderboardData = leaderboardData.slice(0, 50);
-            localStorage.setItem('snakeLeaderboard', JSON.stringify(leaderboardData));
-            return leaderboardData.findIndex(item => item.name === name && item.score === score) + 1;
+        async function submitToCloud(name, score) {
+            try {
+                const res = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, score })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    await loadLeaderboard();
+                    return result.rank;
+                }
+            } catch (e) {
+                console.error('提交分数失败', e);
+            }
+            return null;
         }
 
         function renderLeaderboard() {
@@ -402,15 +418,14 @@
             event.target.classList.add('active');
         }
 
-        function submitScore() {
+        async function submitScore() {
             const name = document.getElementById('playerName').value.trim();
             if (!name || name.length > 10) {
                 alert('请输入1-10个字符的名字');
                 return;
             }
-            const rank = saveToLeaderboard(name, score);
-            document.getElementById('myRank').textContent = '#' + rank;
-            renderLeaderboard();
+            const rank = await submitToCloud(name, score);
+            if (rank) document.getElementById('myRank').textContent = '#' + rank;
             document.getElementById('gameOverModal').classList.remove('show');
             document.getElementById('overlay').classList.remove('hidden');
         }
