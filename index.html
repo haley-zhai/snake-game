@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>贪吃蛇大作战</title>
-    <script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/1.1.1/cloudbase.full.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -229,68 +228,29 @@
     </div>
 
     <script>
-        // ========== 腾讯云配置 ==========
-        const CLOUDBASE_ENV = 'snake-game-5gvtkwf262c3ddc4';
-        let cloudApp = null, cloudDb = null, isCloudReady = false;
+        // ========== 本地排行榜 ==========
         let leaderboardData = [];
 
-        async function initCloud() {
-            if (isCloudReady) return true;
+        function loadLeaderboard() {
             try {
-                if (typeof cloudbase === 'undefined') {
-                    console.error('腾讯云SDK未加载');
-                    return false;
+                const saved = localStorage.getItem('snakeLeaderboard');
+                if (saved) {
+                    leaderboardData = JSON.parse(saved);
+                } else {
+                    leaderboardData = [];
                 }
-                cloudApp = cloudbase.init({ env: CLOUDBASE_ENV });
-                await cloudApp.auth().anonymousAuthProvider().signIn();
-                cloudDb = cloudApp.database();
-                isCloudReady = true;
-                console.log('腾讯云连接成功');
-                return true;
             } catch (e) {
-                console.error('腾讯云初始化失败:', e.message);
-                return false;
+                leaderboardData = [];
             }
+            renderLeaderboard();
         }
 
-        async function loadLeaderboard() {
-            const ready = await initCloud();
-            if (!ready || !cloudDb) {
-                // 云端不可用，显示空状态
-                leaderboardData = [];
-                renderLeaderboard();
-                return;
-            }
-            try {
-                console.log('开始查询排行榜...');
-                const { data } = await cloudDb.collection('leaderboard')
-                    .orderBy('score', 'desc').limit(10).get();
-                console.log('查询结果:', data);
-                leaderboardData = data.map(item => ({
-                    name: item.name || '匿名',
-                    score: parseInt(item.score) || 0
-                }));
-                console.log('处理后的数据:', leaderboardData);
-                renderLeaderboard();
-            } catch (e) {
-                console.error('加载排行榜失败', e);
-                leaderboardData = [];
-                renderLeaderboard();
-            }
-        }
-
-        async function submitToCloud(name, score) {
-            await initCloud();
-            if (!cloudDb) return null;
-            try {
-                await cloudDb.collection('leaderboard').add({
-                    name, score, timestamp: Date.now(),
-                    date: new Date().toLocaleString('zh-CN')
-                });
-                await loadLeaderboard();
-                const rank = leaderboardData.findIndex(i => i.name === name) + 1;
-                return rank > 0 ? rank : null;
-            } catch (e) { return null; }
+        function saveToLeaderboard(name, score) {
+            leaderboardData.push({ name: name || '匿名', score: score, time: Date.now() });
+            leaderboardData.sort((a, b) => b.score - a.score);
+            leaderboardData = leaderboardData.slice(0, 50);
+            localStorage.setItem('snakeLeaderboard', JSON.stringify(leaderboardData));
+            return leaderboardData.findIndex(item => item.name === name && item.score === score) + 1;
         }
 
         function renderLeaderboard() {
@@ -442,14 +402,15 @@
             event.target.classList.add('active');
         }
 
-        async function submitScore() {
+        function submitScore() {
             const name = document.getElementById('playerName').value.trim();
             if (!name || name.length > 10) {
                 alert('请输入1-10个字符的名字');
                 return;
             }
-            const rank = await submitToCloud(name, score);
-            if (rank) document.getElementById('myRank').textContent = '#' + rank;
+            const rank = saveToLeaderboard(name, score);
+            document.getElementById('myRank').textContent = '#' + rank;
+            renderLeaderboard();
             document.getElementById('gameOverModal').classList.remove('show');
             document.getElementById('overlay').classList.remove('hidden');
         }
@@ -464,7 +425,7 @@
         document.addEventListener('keydown', (e) => {
             const keyMap = {
                 ArrowUp: [0, -1], ArrowDown: [0, 1],
-                ArrowLeft: [-1, 0], ArrowRight: [1, 1],
+                ArrowLeft: [-1, 0], ArrowRight: [1, 0],
                 w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0]
             };
             if (keyMap[e.key]) {
