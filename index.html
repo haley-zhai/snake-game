@@ -420,9 +420,15 @@
             let data = [...leaderboardData];
             const now = Date.now();
             if (period === 'today') {
-                data = data.filter(d => now - (d.time * 1000 || 0) < 86400000);
+                data = data.filter(d => {
+                    const t = d.time ? new Date(d.time).getTime() : 0;
+                    return t > 0 && now - t < 86400000;
+                });
             } else if (period === 'week') {
-                data = data.filter(d => now - (d.time * 1000 || 0) < 604800000);
+                data = data.filter(d => {
+                    const t = d.time ? new Date(d.time).getTime() : 0;
+                    return t > 0 && now - t < 604800000;
+                });
             }
             data.sort((a, b) => b.score - a.score);
 
@@ -689,7 +695,13 @@
             const name = document.getElementById('playerName').value.trim();
             if (!name || name.length > 10) { alert('请输入1-10个字符的名字'); return; }
             const rank = await submitToCloud(name, score);
-            if (rank) document.getElementById('myRank').textContent = '#' + rank;
+            if (rank) {
+                document.getElementById('myRank').textContent = '#' + rank;
+                alert('成绩提交成功！排名第 ' + rank);
+            } else {
+                alert('提交失败，请检查网络后重试');
+                return; // 失败不关闭弹窗
+            }
             document.getElementById('gameOverModal').classList.remove('show');
             document.getElementById('overlay').classList.remove('hidden');
         }
