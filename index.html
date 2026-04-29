@@ -769,6 +769,11 @@
         initBgParticles();
         draw();
         loadLeaderboard('all');
+        
+        // 页面获得焦点时刷新排行榜（处理后台切回）
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) loadLeaderboard(currentLbTab);
+        });
     </script>
 </body>
 </html>
