@@ -5,14 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>贪吃蛇大作战</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+            background: #0a0a0f;
             min-height: 100vh;
             color: #fff;
             overflow-x: hidden;
+            touch-action: manipulation;
         }
+        .app { max-width: 480px; margin: 0 auto; min-height: 100vh; position: relative; }
+
+        /* ===== 首页/主页面 ===== */
         .container {
             max-width: 480px;
             margin: 0 auto;
@@ -23,11 +27,17 @@
             padding: 20px 0;
         }
         .header h1 {
-            font-size: 32px;
-            background: linear-gradient(90deg, #00ff88, #00ccff);
+            font-size: 36px;
+            font-weight: 900;
+            background: linear-gradient(90deg, #00ff88, #00ccff, #00ff88);
+            background-size: 200% auto;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            animation: shine 3s linear infinite;
         }
+        @keyframes shine { to { background-position: 200% center; } }
+        .header .subtitle { color: #888; font-size: 13px; margin-top: 4px; }
+
         .game-info {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -37,12 +47,15 @@
         .info-box {
             background: rgba(255,255,255,0.05);
             border-radius: 12px;
-            padding: 12px;
+            padding: 14px 8px;
             text-align: center;
             border: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.2s, border-color 0.2s;
         }
         .info-box .label { font-size: 11px; color: #888; margin-bottom: 4px; }
-        .info-box .value { font-size: 24px; font-weight: bold; color: #00ff88; }
+        .info-box .value { font-size: 26px; font-weight: bold; color: #00ff88; }
+        .info-box.active { border-color: #00ff88; transform: scale(1.02); }
+
         .game-area {
             position: relative;
             background: rgba(0,0,0,0.3);
@@ -50,6 +63,7 @@
             padding: 12px;
             margin-bottom: 16px;
             border: 2px solid rgba(0,255,136,0.2);
+            overflow: hidden;
         }
         canvas {
             display: block;
@@ -67,8 +81,10 @@
             align-items: center;
             justify-content: center;
             gap: 16px;
+            transition: opacity 0.3s;
         }
-        .overlay.hidden { display: none; }
+        .overlay.hidden { opacity: 0; pointer-events: none; }
+
         .btn-start {
             padding: 16px 40px;
             font-size: 18px;
@@ -78,7 +94,11 @@
             background: linear-gradient(135deg, #00ff88, #00ccff);
             color: #000;
             cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0,255,136,0.3);
+            transition: transform 0.1s, box-shadow 0.2s;
         }
+        .btn-start:active { transform: scale(0.95); box-shadow: 0 2px 10px rgba(0,255,136,0.2); }
+
         .controls {
             display: flex;
             gap: 8px;
@@ -93,11 +113,40 @@
             color: #fff;
             font-size: 14px;
             cursor: pointer;
+            transition: all 0.2s;
         }
+        .btn:hover { background: rgba(255,255,255,0.08); }
         .btn.active {
             background: linear-gradient(135deg, rgba(0,255,136,0.3), rgba(0,204,255,0.3));
             border-color: #00ff88;
+            color: #00ff88;
         }
+
+        .sound-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            margin-bottom: 16px;
+        }
+        .sound-toggle .label { font-size: 14px; }
+        .toggle {
+            width: 44px; height: 24px; border-radius: 12px;
+            background: #333; position: relative; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .toggle.on { background: #00ff88; }
+        .toggle::after {
+            content: ''; position: absolute; width: 20px; height: 20px;
+            border-radius: 50%; background: #fff; top: 2px; left: 2px;
+            transition: transform 0.2s;
+        }
+        .toggle.on::after { transform: translateX(20px); }
+
+        /* ===== 排行榜 ===== */
         .leaderboard {
             background: rgba(255,255,255,0.03);
             border-radius: 16px;
@@ -105,16 +154,32 @@
             border: 1px solid rgba(255,255,255,0.1);
         }
         .leaderboard h3 { margin-bottom: 12px; font-size: 18px; }
+        .lb-tabs {
+            display: flex; gap: 6px; margin-bottom: 12px;
+        }
+        .lb-tab {
+            flex: 1; padding: 8px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.03); color: #888;
+            cursor: pointer; font-size: 12px; text-align: center;
+            transition: all 0.2s;
+        }
+        .lb-tab.active {
+            border-color: #00ff88; color: #00ff88;
+            background: rgba(0,255,136,0.08);
+        }
         .leaderboard-item {
             display: flex;
             align-items: center;
-            padding: 10px;
+            padding: 12px;
             background: rgba(255,255,255,0.05);
             border-radius: 8px;
             margin-bottom: 8px;
+            transition: transform 0.1s, background 0.2s;
         }
+        .leaderboard-item:hover { transform: scale(1.01); background: rgba(255,255,255,0.07); }
         .rank-num {
-            width: 28px; height: 28px;
+            width: 30px; height: 30px;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -122,21 +187,26 @@
             font-weight: bold;
             font-size: 12px;
             margin-right: 12px;
+            flex-shrink: 0;
         }
         .rank-1 { background: linear-gradient(135deg, #ffd700, #ffaa00); color: #000; }
         .rank-2 { background: linear-gradient(135deg, #c0c0c0, #a0a0a0); color: #000; }
         .rank-3 { background: linear-gradient(135deg, #cd7f32, #b87333); color: #fff; }
         .rank-other { background: rgba(255,255,255,0.1); color: #888; }
-        .rank-name { flex: 1; }
-        .rank-score { font-weight: bold; color: #00ff88; }
+        .rank-name { flex: 1; font-size: 14px; }
+        .rank-score { font-weight: bold; color: #00ff88; font-size: 16px; }
+        .lb-empty { text-align: center; padding: 40px; color: #555; }
+
+        /* ===== 结算弹窗 ===== */
         .modal {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             display: none;
             align-items: center;
             justify-content: center;
             z-index: 100;
+            backdrop-filter: blur(8px);
         }
         .modal.show { display: flex; }
         .modal-content {
@@ -147,9 +217,26 @@
             max-width: 320px;
             text-align: center;
             border: 1px solid rgba(0,255,136,0.3);
+            animation: modalPop 0.3s ease;
         }
-        .modal-content h2 { margin-bottom: 16px; }
-        .final-score { font-size: 48px; font-weight: bold; color: #00ff88; margin-bottom: 20px; }
+        @keyframes modalPop {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .modal-content h2 { margin-bottom: 16px; font-size: 22px; }
+        .final-score {
+            font-size: 56px; font-weight: 900;
+            color: #00ff88; margin-bottom: 8px;
+            text-shadow: 0 0 30px rgba(0,255,136,0.3);
+        }
+        .modal-content .stats-row {
+            display: flex; justify-content: space-between;
+            padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+            font-size: 13px;
+        }
+        .modal-content .stats-row:last-child { border: none; }
+        .modal-content .stats-row .k { color: #888; }
+        .modal-content .stats-row .v { font-weight: bold; }
         .modal-content input {
             width: 100%;
             padding: 14px;
@@ -159,7 +246,7 @@
             color: #fff;
             font-size: 16px;
             text-align: center;
-            margin-bottom: 16px;
+            margin: 16px 0;
         }
         .btn-submit {
             width: 100%;
@@ -171,96 +258,207 @@
             background: linear-gradient(135deg, #00ff88, #00ccff);
             color: #000;
             cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .btn-submit:active { transform: scale(0.97); }
+        .btn-again {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            font-size: 14px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            cursor: pointer;
+        }
+
+        /* 浮动得分 */
+        .float-score {
+            position: absolute;
+            font-weight: bold; font-size: 18px;
+            color: #00ff88; pointer-events: none;
+            z-index: 10; text-shadow: 0 0 10px rgba(0,255,136,0.5);
+            animation: floatUp 0.8s ease-out forwards;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-40px) scale(1.3); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🐍 贪吃蛇大作战</h1>
+    <div class="app">
+        <div class="container">
+            <div class="header">
+                <h1>🐍 贪吃蛇大作战</h1>
+                <div class="subtitle">v6.5 增强版</div>
+            </div>
+
+            <div class="game-info">
+                <div class="info-box" id="box-score">
+                    <div class="label">得分</div>
+                    <div class="value" id="score">0</div>
+                </div>
+                <div class="info-box">
+                    <div class="label">最高分</div>
+                    <div class="value" id="highScore">0</div>
+                </div>
+                <div class="info-box">
+                    <div class="label">排名</div>
+                    <div class="value" id="myRank">-</div>
+                </div>
+            </div>
+
+            <div class="sound-toggle">
+                <span class="label">🔊 音效</span>
+                <div class="toggle on" id="soundToggle" onclick="toggleSound()"></div>
+            </div>
+
+            <div class="game-area" id="gameArea">
+                <canvas id="gameCanvas" width="350" height="350"></canvas>
+                <div class="overlay" id="overlay">
+                    <div style="font-size: 64px; animation: shine 2s linear infinite;">🐍</div>
+                    <div style="color: #888;">点击开始或滑动屏幕</div>
+                    <button class="btn-start" onclick="startGame()">开始游戏</button>
+                </div>
+            </div>
+
+            <div class="leaderboard">
+                <h3>🏆 排行榜</h3>
+                <div class="lb-tabs">
+                    <button class="lb-tab active" onclick="switchLb('all', this)">全部</button>
+                    <button class="lb-tab" onclick="switchLb('week', this)">本周</button>
+                    <button class="lb-tab" onclick="switchLb('today', this)">今日</button>
+                </div>
+                <div id="leaderboardList">
+                    <div class="lb-empty">加载中...</div>
+                </div>
+            </div>
         </div>
 
-        <div class="game-info">
-            <div class="info-box">
-                <div class="label">得分</div>
-                <div class="value" id="score">0</div>
+        <div class="modal" id="gameOverModal">
+            <div class="modal-content">
+                <div style="font-size: 48px; margin-bottom: 8px;">💥</div>
+                <h2>游戏结束</h2>
+                <div class="final-score" id="finalScore">0</div>
+                <div class="stats-row"><span class="k">蛇身长度</span><span class="v" id="r-length">-</span></div>
+                <div class="stats-row"><span class="k">用时</span><span class="v" id="r-time">-</span></div>
+                <input type="text" id="playerName" placeholder="输入名字" maxlength="10">
+                <button class="btn-submit" onclick="submitScore()">提交成绩</button>
+                <button class="btn-again" onclick="backToStart()">再来一局</button>
             </div>
-            <div class="info-box">
-                <div class="label">最高分</div>
-                <div class="value" id="highScore">0</div>
-            </div>
-            <div class="info-box">
-                <div class="label">排名</div>
-                <div class="value" id="myRank">-</div>
-            </div>
-        </div>
-
-        <div class="game-area">
-            <canvas id="gameCanvas" width="350" height="350"></canvas>
-            <div class="overlay" id="overlay">
-                <div style="font-size: 64px;">🐍</div>
-                <div style="color: #888;">点击开始或滑动屏幕</div>
-                <button class="btn-start" onclick="startGame()">开始游戏</button>
-            </div>
-        </div>
-
-        <div class="controls">
-            <button class="btn active" onclick="setDifficulty('easy')">简单</button>
-            <button class="btn" onclick="setDifficulty('normal')">普通</button>
-            <button class="btn" onclick="setDifficulty('hard')">困难</button>
-        </div>
-
-        <div class="leaderboard">
-            <h3>🏆 排行榜</h3>
-            <div id="leaderboardList">
-                <div style="text-align: center; padding: 40px; color: #666;">加载中...</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal" id="gameOverModal">
-        <div class="modal-content">
-            <h2>💥 游戏结束</h2>
-            <div class="final-score" id="finalScore">0</div>
-            <input type="text" id="playerName" placeholder="输入名字" maxlength="10">
-            <button class="btn-submit" onclick="submitScore()">提交成绩</button>
         </div>
     </div>
 
     <script>
-        // ========== 云端排行榜 ==========
-        const API_BASE = 'https://api.qinjiang.top/api/leaderboard';
+        // ========== API 配置 ==========
+        const API_BASE = 'http://134.175.187.78:3000';
         let leaderboardData = [];
+        let currentLbTab = 'all';
 
-        async function loadLeaderboard() {
+        // ========== 音效系统 ==========
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let soundEnabled = true;
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            localStorage.setItem('snakeSound', soundEnabled ? '1' : '0');
+            document.getElementById('soundToggle').classList.toggle('on', soundEnabled);
+        }
+        function loadSoundSetting() {
+            const s = localStorage.getItem('snakeSound');
+            soundEnabled = s !== '0';
+            document.getElementById('soundToggle').classList.toggle('on', soundEnabled);
+        }
+        function playSound(type) {
+            if (!soundEnabled) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+            if (type === 'eat') {
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(900, now + 0.1);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                osc.start(); osc.stop(now + 0.15);
+            } else if (type === 'die') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(80, now + 0.4);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                osc.start(); osc.stop(now + 0.4);
+            }
+        }
+
+        // ========== 排行榜 ==========
+        async function loadLeaderboard(period) {
             try {
-                const res = await fetch(API_BASE);
+                const res = await fetch(`${API_BASE}/api/leaderboard`);
                 const result = await res.json();
                 if (result.success) {
                     leaderboardData = result.data.map(item => ({
                         name: item.name || '匿名',
-                        score: item.score || 0
+                        score: parseInt(item.score) || 0,
+                        time: item.created_at || item.time || 0
                     }));
+                    renderLeaderboard(period || 'all');
                 } else {
-                    leaderboardData = [];
+                    document.getElementById('leaderboardList').innerHTML = '<div class="lb-empty">暂无数据</div>';
                 }
             } catch (e) {
                 console.error('加载排行榜失败', e);
-                leaderboardData = [];
+                document.getElementById('leaderboardList').innerHTML = '<div class="lb-empty">加载失败</div>';
             }
-            renderLeaderboard();
+        }
+
+        function renderLeaderboard(period) {
+            currentLbTab = period;
+            let data = [...leaderboardData];
+            const now = Date.now();
+            if (period === 'today') {
+                data = data.filter(d => now - (d.time * 1000 || 0) < 86400000);
+            } else if (period === 'week') {
+                data = data.filter(d => now - (d.time * 1000 || 0) < 604800000);
+            }
+            data.sort((a, b) => b.score - a.score);
+
+            const list = document.getElementById('leaderboardList');
+            if (data.length === 0) {
+                list.innerHTML = '<div class="lb-empty">还没有人上榜</div>';
+                return;
+            }
+            list.innerHTML = data.slice(0, 50).map((item, i) => {
+                const rc = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other';
+                return `
+                    <div class="leaderboard-item">
+                        <div class="rank-num ${rc}">${i + 1}</div>
+                        <div class="rank-name">${escapeHtml(item.name)}</div>
+                        <div class="rank-score">${item.score}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function switchLb(period, btn) {
+            document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            renderLeaderboard(period);
         }
 
         async function submitToCloud(name, score) {
             try {
-                const res = await fetch(API_BASE, {
+                const res = await fetch(`${API_BASE}/api/leaderboard`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name, score })
                 });
                 const result = await res.json();
                 if (result.success) {
-                    await loadLeaderboard();
+                    await loadLeaderboard(currentLbTab);
                     return result.rank;
                 }
             } catch (e) {
@@ -269,42 +467,46 @@
             return null;
         }
 
-        function renderLeaderboard() {
-            const list = document.getElementById('leaderboardList');
-            if (leaderboardData.length === 0) {
-                list.innerHTML = '<div style="text-align:center;padding:40px;color:#666;">还没有人上榜</div>';
-                return;
-            }
-            list.innerHTML = leaderboardData.map((item, i) => {
-                const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other';
-                return `
-                    <div class="leaderboard-item">
-                        <div class="rank-num ${rankClass}">${i + 1}</div>
-                        <div class="rank-name">${escapeHtml(item.name)}</div>
-                        <div class="rank-score">${item.score}</div>
-                    </div>
-                `;
-            }).join('');
-        }
-
         // ========== 游戏核心 ==========
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const GRID_SIZE = 20, TILE_COUNT = 17;
-        
         let snake = [], food = {}, dx = 1, dy = 0, score = 0;
         let gameLoop = null, isGameOver = false, isPlaying = false;
-        let difficulty = 'easy', speed = 150;
+        let speed = 150; // 固定简单速度
+        let gameStartTime = 0;
+        let foodPulse = 0;
+        let bgParticles = [];
+        let foodEaten = 0; // 吃食物计数器
 
-        const speeds = { easy: 150, normal: 100, hard: 60 };
+        function initBgParticles() {
+            bgParticles = [];
+            for (let i = 0; i < 15; i++) {
+                bgParticles.push({
+                    x: Math.random() * 350, y: Math.random() * 350,
+                    size: 1 + Math.random() * 2,
+                    speed: 0.2 + Math.random() * 0.5,
+                    alpha: 0.1 + Math.random() * 0.2
+                });
+            }
+        }
 
         function draw() {
-            // 背景
             ctx.fillStyle = '#0a0a0f';
             ctx.fillRect(0, 0, 350, 350);
-            
+
+            // 背景粒子
+            bgParticles.forEach(p => {
+                p.y -= p.speed;
+                if (p.y < 0) { p.y = 350; p.x = Math.random() * 350; }
+                ctx.fillStyle = `rgba(0,255,136,${p.alpha})`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
             // 网格
-            ctx.strokeStyle = 'rgba(0,255,136,0.05)';
+            ctx.strokeStyle = 'rgba(0,255,136,0.04)';
             ctx.lineWidth = 0.5;
             for (let i = 0; i <= TILE_COUNT; i++) {
                 ctx.beginPath();
@@ -320,80 +522,118 @@
             // 蛇
             snake.forEach((seg, i) => {
                 const x = seg.x * GRID_SIZE, y = seg.y * GRID_SIZE;
-                ctx.fillStyle = i === 0 ? '#00ff88' : `rgba(0,255,136,${0.8 - i * 0.03})`;
-                ctx.shadowBlur = i === 0 ? 10 : 0;
-                ctx.shadowColor = '#00ff88';
-                ctx.fillRect(x + 1, y + 1, GRID_SIZE - 2, GRID_SIZE - 2);
-            });
-            ctx.shadowBlur = 0;
+                const isHead = i === 0;
+                const alpha = isHead ? 1 : Math.max(0.3, 0.9 - i * 0.04);
+                const size = isHead ? GRID_SIZE - 2 : GRID_SIZE - 4;
+                const offset = isHead ? 1 : 2;
+                const hue = 140 + Math.sin(i * 0.15) * 20;
+                const color = isHead ? '#00ff88' : `hsla(${hue}, 80%, 55%, ${alpha})`;
 
-            // 食物
+                ctx.fillStyle = color;
+                if (isHead) {
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = '#00ff88';
+                }
+                ctx.beginPath();
+                roundRect(ctx, x + offset, y + offset, size, size, 4);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // 蛇头眼睛
+                if (isHead) {
+                    ctx.fillStyle = '#000';
+                    const ex = dx === 1 ? 0.7 : dx === -1 ? 0.3 : 0.5;
+                    const ey = dy === 1 ? 0.7 : dy === -1 ? 0.3 : 0.5;
+                    const eyeR = GRID_SIZE * 0.12;
+                    ctx.beginPath();
+                    ctx.arc(x + GRID_SIZE * ex, y + GRID_SIZE * ey, eyeR, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            // 食物呼吸动画
+            foodPulse += 0.06;
+            const pulseScale = 1 + Math.sin(foodPulse) * 0.12;
             const fx = food.x * GRID_SIZE + GRID_SIZE/2;
             const fy = food.y * GRID_SIZE + GRID_SIZE/2;
+            const r = (GRID_SIZE/2 - 3) * pulseScale;
             ctx.fillStyle = '#ff6b6b';
             ctx.shadowBlur = 15;
             ctx.shadowColor = '#ff6b6b';
             ctx.beginPath();
-            ctx.arc(fx, fy, GRID_SIZE/2 - 3, 0, Math.PI * 2);
+            ctx.arc(fx, fy, Math.max(r, 3), 0, Math.PI * 2);
             ctx.fill();
             ctx.shadowBlur = 0;
+            // 光泽
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.beginPath();
+            ctx.arc(fx - r*0.3, fy - r*0.3, r*0.3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
         }
 
         function update() {
             if (isGameOver) return;
-
             const head = { x: snake[0].x + dx, y: snake[0].y + dy };
 
-            // 撞墙
             if (head.x < 0 || head.x >= TILE_COUNT || head.y < 0 || head.y >= TILE_COUNT) {
-                gameOver();
-                return;
+                endGame('crash'); return;
             }
-
-            // 撞自己
             for (let seg of snake) {
                 if (head.x === seg.x && head.y === seg.y) {
-                    gameOver();
-                    return;
+                    endGame('crash'); return;
                 }
             }
-
             snake.unshift(head);
 
-            // 吃食物
             if (head.x === food.x && head.y === food.y) {
                 score += 10;
+                foodEaten++;
                 document.getElementById('score').textContent = score;
                 if (score > highScore) {
                     highScore = score;
                     localStorage.setItem('snakeHigh', highScore);
                     document.getElementById('highScore').textContent = highScore;
                 }
+                playSound('eat');
+                showFloat(head.x * GRID_SIZE + GRID_SIZE/2, head.y * GRID_SIZE, '+10');
                 placeFood();
+                // 每吃5个豆子，速度增加5%
+                if (foodEaten % 5 === 0) {
+                    speed = Math.max(40, Math.floor(speed * 0.95));
+                    clearInterval(gameLoop);
+                    gameLoop = setInterval(update, speed);
+                }
             } else {
                 snake.pop();
             }
-
             draw();
         }
 
         function placeFood() {
             let f;
-            do {
-                f = {
-                    x: Math.floor(Math.random() * TILE_COUNT),
-                    y: Math.floor(Math.random() * TILE_COUNT)
-                };
-            } while (snake.some(s => s.x === f.x && s.y === f.y));
+            do { f = { x: Math.floor(Math.random() * TILE_COUNT), y: Math.floor(Math.random() * TILE_COUNT) }; }
+            while (snake.some(s => s.x === f.x && s.y === f.y));
             food = f;
         }
 
         function startGame() {
-            snake = [{ x: 5, y: 5 }];
+            snake = [{ x: 5, y: 5 }, { x: 4, y: 5 }, { x: 3, y: 5 }];
             dx = 1; dy = 0;
             score = 0;
+            foodEaten = 0;
+            speed = 150; // 初始简单速度
             isGameOver = false;
             isPlaying = true;
+            gameStartTime = Date.now();
             document.getElementById('score').textContent = '0';
             document.getElementById('overlay').classList.add('hidden');
             document.getElementById('gameOverModal').classList.remove('show');
@@ -403,31 +643,65 @@
             draw();
         }
 
-        function gameOver() {
+        function endGame(reason) {
             isGameOver = true;
             isPlaying = false;
             clearInterval(gameLoop);
-            document.getElementById('finalScore').textContent = score;
-            document.getElementById('gameOverModal').classList.add('show');
+            playSound('die');
+
+            // 死亡粒子动画
+            const playTime = Math.floor((Date.now() - gameStartTime) / 1000);
+            const gameArea = document.getElementById('gameArea');
+            snake.forEach((seg, i) => {
+                setTimeout(() => {
+                    const ex = seg.x * GRID_SIZE + GRID_SIZE/2;
+                    const ey = seg.y * GRID_SIZE + GRID_SIZE/2;
+                    for (let j = 0; j < 6; j++) {
+                        const p = document.createElement('div');
+                        const angle = (Math.PI * 2 * j) / 6;
+                        const dist = 20 + Math.random() * 15;
+                        p.style.cssText = `position:absolute;left:${ex}px;top:${ey}px;width:4px;height:4px;border-radius:50%;background:${i===0?'#ff6b6b':'#00ff88'};pointer-events:none;z-index:10;`;
+                        gameArea.appendChild(p);
+                        p.animate([
+                            { transform: 'translate(0,0) scale(1)', opacity: 1 },
+                            { transform: `translate(${Math.cos(angle)*dist}px,${Math.sin(angle)*dist}px) scale(0)`, opacity: 0 }
+                        ], { duration: 500, easing: 'ease-out' }).onfinish = () => p.remove();
+                    }
+                }, i * 40);
+            });
+
+            setTimeout(() => {
+                document.getElementById('finalScore').textContent = score;
+                document.getElementById('r-length').textContent = snake.length;
+                document.getElementById('r-time').textContent = playTime + '秒';
+                document.getElementById('gameOverModal').classList.add('show');
+            }, 600);
         }
 
-        function setDifficulty(d) {
-            difficulty = d;
-            speed = speeds[d];
-            document.querySelectorAll('.controls .btn').forEach(b => b.classList.remove('active'));
-            event.target.classList.add('active');
+        function gameOver() { endGame('crash'); }
+
+        function backToStart() {
+            document.getElementById('gameOverModal').classList.remove('show');
+            document.getElementById('overlay').classList.remove('hidden');
         }
 
         async function submitScore() {
             const name = document.getElementById('playerName').value.trim();
-            if (!name || name.length > 10) {
-                alert('请输入1-10个字符的名字');
-                return;
-            }
+            if (!name || name.length > 10) { alert('请输入1-10个字符的名字'); return; }
             const rank = await submitToCloud(name, score);
             if (rank) document.getElementById('myRank').textContent = '#' + rank;
             document.getElementById('gameOverModal').classList.remove('show');
             document.getElementById('overlay').classList.remove('hidden');
+        }
+
+        function showFloat(x, y, text) {
+            const el = document.createElement('div');
+            el.className = 'float-score';
+            el.textContent = text;
+            el.style.left = (12 + x) + 'px';
+            el.style.top = (12 + y) + 'px';
+            document.getElementById('gameArea').appendChild(el);
+            setTimeout(() => el.remove(), 800);
         }
 
         function escapeHtml(text) {
@@ -451,7 +725,6 @@
             }
         });
 
-        // 触屏控制
         let touchStartX = 0, touchStartY = 0;
         document.addEventListener('touchstart', e => {
             touchStartX = e.touches[0].clientX;
@@ -468,7 +741,6 @@
             const dx1 = e.changedTouches[0].clientX - touchStartX;
             const dy1 = e.changedTouches[0].clientY - touchStartY;
             if (Math.abs(dx1) < 30 && Math.abs(dy1) < 30) return;
-            
             if (Math.abs(dx1) > Math.abs(dy1)) {
                 if (dx1 > 0 && dx !== -1) { dx = 1; dy = 0; }
                 else if (dx1 < 0 && dx !== 1) { dx = -1; dy = 0; }
@@ -481,8 +753,10 @@
         // ========== 初始化 ==========
         let highScore = parseInt(localStorage.getItem('snakeHigh') || '0');
         document.getElementById('highScore').textContent = highScore;
+        loadSoundSetting();
+        initBgParticles();
         draw();
-        loadLeaderboard();
+        loadLeaderboard('all');
     </script>
 </body>
 </html>
