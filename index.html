@@ -194,6 +194,7 @@
         .rank-3 { background: linear-gradient(135deg, #cd7f32, #b87333); color: #fff; }
         .rank-other { background: rgba(255,255,255,0.1); color: #888; }
         .rank-name { flex: 1; font-size: 14px; }
+        .rank-time { font-size: 11px; color: #666; margin-top: 2px; }
         .rank-score { font-weight: bold; color: #00ff88; font-size: 16px; }
         .lb-empty { text-align: center; padding: 40px; color: #555; }
 
@@ -310,11 +311,6 @@
                 </div>
             </div>
 
-            <div class="sound-toggle">
-                <span class="label">🔊 音效</span>
-                <div class="toggle on" id="soundToggle" onclick="toggleSound()"></div>
-            </div>
-
             <div class="game-area" id="gameArea">
                 <canvas id="gameCanvas" width="350" height="350"></canvas>
                 <div class="overlay" id="overlay">
@@ -359,19 +355,7 @@
 
         // ========== 音效系统 ==========
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        let soundEnabled = true;
-        function toggleSound() {
-            soundEnabled = !soundEnabled;
-            localStorage.setItem('snakeSound', soundEnabled ? '1' : '0');
-            document.getElementById('soundToggle').classList.toggle('on', soundEnabled);
-        }
-        function loadSoundSetting() {
-            const s = localStorage.getItem('snakeSound');
-            soundEnabled = s !== '0';
-            document.getElementById('soundToggle').classList.toggle('on', soundEnabled);
-        }
         function playSound(type) {
-            if (!soundEnabled) return;
             if (audioCtx.state === 'suspended') audioCtx.resume();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
@@ -418,16 +402,21 @@
         function renderLeaderboard(period) {
             currentLbTab = period;
             let data = [...leaderboardData];
-            const now = Date.now();
+            const now = new Date();
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+            const dayOfWeek = now.getDay(); // 0=周日,1=周一,...,6=周六
+            const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+            const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset, 0, 0, 0, 0).getTime();
+
             if (period === 'today') {
                 data = data.filter(d => {
                     const t = d.time ? new Date(d.time).getTime() : 0;
-                    return t > 0 && now - t < 86400000;
+                    return t >= todayStart;
                 });
             } else if (period === 'week') {
                 data = data.filter(d => {
                     const t = d.time ? new Date(d.time).getTime() : 0;
-                    return t > 0 && now - t < 604800000;
+                    return t >= weekStart;
                 });
             }
             data.sort((a, b) => b.score - a.score);
@@ -437,12 +426,25 @@
                 list.innerHTML = '<div class="lb-empty">还没有人上榜</div>';
                 return;
             }
+
             list.innerHTML = data.slice(0, 50).map((item, i) => {
                 const rc = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other';
+                let timeStr = '';
+                if (item.time) {
+                    const d = new Date(item.time);
+                    const MM = String(d.getMonth() + 1).padStart(2, '0');
+                    const DD = String(d.getDate()).padStart(2, '0');
+                    const hh = String(d.getHours()).padStart(2, '0');
+                    const mm = String(d.getMinutes()).padStart(2, '0');
+                    timeStr = `${MM}-${DD} ${hh}:${mm}`;
+                }
                 return `
                     <div class="leaderboard-item">
                         <div class="rank-num ${rc}">${i + 1}</div>
-                        <div class="rank-name">${escapeHtml(item.name)}</div>
+                        <div class="rank-info">
+                            <div class="rank-name">${escapeHtml(item.name)}</div>
+                            <div class="rank-time">${timeStr}</div>
+                        </div>
                         <div class="rank-score">${item.score}</div>
                     </div>
                 `;
@@ -765,7 +767,6 @@
         // ========== 初始化 ==========
         let highScore = parseInt(localStorage.getItem('snakeHigh') || '0');
         document.getElementById('highScore').textContent = highScore;
-        loadSoundSetting();
         initBgParticles();
         draw();
         loadLeaderboard('all');
