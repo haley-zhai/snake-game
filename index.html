@@ -699,7 +699,6 @@
             const rank = await submitToCloud(name, score);
             if (rank) {
                 document.getElementById('myRank').textContent = '#' + rank;
-                alert('成绩提交成功！排名第 ' + rank);
             } else {
                 alert('提交失败，请检查网络后重试');
                 return; // 失败不关闭弹窗
